@@ -553,60 +553,66 @@ export default function QuoteCartPage() {
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-  const buildQuoteItems = (lines, propertyType = "Commercial") => {
-    const out = [];
+const buildQuoteItems = (lines, propertyType = "Commercial") => {
+  const out = [];
 
-    const allowedCategories = [
-      "Residential",
-      "Commercial",
-      "Industrial",
-      "Other",
-    ];
-    const safeCategory = allowedCategories.includes(propertyType)
-      ? propertyType
-      : "Commercial";
+  const allowedCategories = [
+    "Residential",
+    "Commercial",
+    "Industrial",
+    "Other",
+  ];
+  const safeCategory = allowedCategories.includes(propertyType)
+    ? propertyType
+    : "Commercial";
 
-    lines.forEach((parent) => {
-      const pushItem = (it) => {
-        const visits = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
-        const units = hasUnitControl(it) ? Number(it.units) || 1 : 1;
+  lines.forEach((parent) => {
+    const pushItem = (it) => {
+      const showVisit = hasVisitControl(it);
+      const showUnit = hasUnitControl(it);
 
-        const item = {
-          item_code: it.item_code,
-          service: "AMC Charges",
-          category: safeCategory,
+      const visits = showVisit ? Number(it.visits) || 1 : 1;
+      const units = showUnit ? Number(it.units) || 1 : 1;
 
-          amc_type_id: it.amc_type_id || "",
-          amc_type: it.amc_type_name || it.amc_type || "",
+      // qty = what backend multiplies `rate` by
+      const qty =  units;
 
-          amc_sub_type_id: it.amc_sub_type_id || "",
-          amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
+      // line subtotal — same value shown on that cart line
+      const lineSubtotal = computeItemAmount(it) * visits;
 
-          visits,
-          units,
+      const item = {
+        item_code: it.item_code,
+        category: safeCategory,
+        service: "AMC Charges",
 
-          rate: Number(it.rate) || 0,
-          final_rate: Number(it.final_rate ?? it.rate) || 0,
-          stock_uom: it.stock_uom || it.uom || "Nos",
+        amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
+        amc_type: it.amc_type_name || it.amc_type || "",
 
-          custom_unit: it.custom_unit ?? null,
-          custom_visit: it.custom_visit ?? 0,
-          custom_min_amount: Number(it.custom_min_amount) || 0,
-        };
+        amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
+        amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
 
-        if (it.gst_hsn_code) {
-          item.gst_hsn_code = it.gst_hsn_code;
-        }
+        qty,
+        visits,
 
-        out.push(item);
+        rate: Number(it.rate) || 0,        // per-unit rate
+        final_rate: lineSubtotal,          // 👈 this line's subtotal
+
+        stock_uom: it.stock_uom || it.uom || "Nos",
       };
 
-      pushItem(parent);
-      (parent.subItems || []).forEach(pushItem);
-    });
+      if (it.gst_hsn_code) {
+        item.gst_hsn_code = it.gst_hsn_code;
+      }
 
-    return out;
-  };
+      out.push(item);
+    };
+
+    pushItem(parent);
+    (parent.subItems || []).forEach(pushItem);
+  });
+
+  return out;
+};
 
   const handleSubmit = async (e) => {
     e.preventDefault();
