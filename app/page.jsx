@@ -5,8 +5,8 @@ import Link from "next/link";
 import "./amc.scss";
 import AMCNavbar from "@/components/Navbar/Navbar.jsx";
 import styles from "../app/quote-cart/cart.module.scss";
-import { useRouter } from "next/navigation"; // 👈 add this
-import { isUserLoggedIn } from "@/lib/auth"; // 👈 add this
+import { useRouter } from "next/navigation";
+import { isUserLoggedIn } from "@/lib/auth";
 
 import {
   getCart,
@@ -14,6 +14,7 @@ import {
   appendToCartItem,
   setSubItemQty,
   removeSubItem,
+  removeFromCart, // 👈 make sure this is exported from @/lib/cart
 } from "@/lib/cart";
 
 const process = [
@@ -110,14 +111,13 @@ function CatalogBody({
   catalogError,
   filteredCatalog,
   onAdd,
+  onRemove,
   isAdded,
   retry,
   addLabel,
 }) {
   return (
     <>
-    
-
       {catalogTypes.length > 1 && (
         <div className={styles.catalogChips}>
           {catalogTypes.map((t) => (
@@ -196,16 +196,26 @@ function CatalogBody({
                     </span>
                   )}
                 </div>
-                <button
-                  type="button"
-                  className={`${styles.catalogItem__add} ${
-                    added ? styles["catalogItem__add--added"] : ""
-                  }`}
-                  onClick={() => onAdd(it)}
-                >
-                  {addLabel(added)}
-                  <span>+</span>
-                </button>
+
+                {added ? (
+                  <button
+                    type="button"
+                    className={`${styles.catalogItem__add} ${styles["catalogItem__add--remove"]}`}
+                    onClick={() => onRemove(it)}
+                  >
+                    Remove
+                    <span>×</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={styles.catalogItem__add}
+                    onClick={() => onAdd(it)}
+                  >
+                    {addLabel(added)}
+                    <span>+</span>
+                  </button>
+                )}
               </div>
             );
           })}
@@ -218,11 +228,11 @@ function CatalogBody({
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 export default function Page() {
+  const router = useRouter();
+
   const [amcServices, setAmcServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-    const router = useRouter(); // 👈 add this
-
 
   // cart (persisted)
   const [cart, setCart] = useState([]);
@@ -244,18 +254,18 @@ export default function Page() {
 
   const [toast, setToast] = useState("");
 
-
+  /* -------- auth-guarded open of the global add modal -------- */
   const handleOpenAddModal = useCallback(() => {
-  if (!isUserLoggedIn()) {
-    // Preserve where the user was so you can send them back after login
-    const redirectTo = encodeURIComponent(
-      window.location.pathname + window.location.search + "#services"
-    );
-    router.push(`/login?redirect=${redirectTo}`);
-    return;
-  }
-  setAddOpen(true);
-}, [router]);
+    if (!isUserLoggedIn()) {
+      const redirectTo = encodeURIComponent(
+        window.location.pathname + window.location.search + "#services"
+      );
+      router.push(`/login?redirect=${redirectTo}`);
+      return;
+    }
+    setAddOpen(true);
+  }, [router]);
+
   /* -------- hydrate cart -------- */
   useEffect(() => {
     setMounted(true);
@@ -289,43 +299,42 @@ export default function Page() {
             ? json.message
             : [];
 
-const mapped = raw
-  .map((item) => {
-    // Normalize: keep the whole object when possible
-    if (typeof item === "string") {
-      return { title: item, description: "" };
-    }
-    return {
-      title: item?.name || item?.id || item?.title || "",
-      description:
-        item?.description ||
-        item?.amc_type_description ||
-        item?.short_description ||
-        "",
-    };
-  })
-  .filter((s) => Boolean(s.title))
-  .map((s, index) => {
-    const slug = slugify(s.title);
+        const mapped = raw
+          .map((item) => {
+            if (typeof item === "string") {
+              return { title: item, description: "" };
+            }
+            return {
+              title: item?.name || item?.id || item?.title || "",
+              description:
+                item?.description ||
+                item?.amc_type_description ||
+                item?.short_description ||
+                "",
+            };
+          })
+          .filter((s) => Boolean(s.title))
+          .map((s, index) => {
+            const slug = slugify(s.title);
 
-    return {
-      id: slug,
-      slug,
-      href: `/amc/${slug}`,
-      number: String(index + 1).padStart(2, "0"),
-      title: s.title,
-      // 👇 use API description (fallback to short if empty)
-      description:
-        s.description ||
-        `Annual maintenance contract covering ${s.title.toLowerCase()} with scheduled inspections, preventive servicing and priority support.`,
-      items: [
-        "Scheduled inspections",
-        "Preventive servicing",
-        "Priority support",
-      ],
-    };
-  })
-  .filter((s) => Boolean(s.slug));
+            return {
+              id: slug,
+              slug,
+              href: `/amc/${slug}`,
+              number: String(index + 1).padStart(2, "0"),
+              title: s.title,
+              description:
+                s.description ||
+                `Annual maintenance contract covering ${s.title.toLowerCase()} with scheduled inspections, preventive servicing and priority support.`,
+              items: [
+                "Scheduled inspections",
+                "Preventive servicing",
+                "Priority support",
+              ],
+            };
+          })
+          .filter((s) => Boolean(s.slug));
+
         setAmcServices(mapped);
       } catch (err) {
         console.error("Failed to fetch AMC types:", err);
@@ -418,6 +427,13 @@ const mapped = raw
     });
   }, [catalog, search, activeType]);
 
+  /* -------- total items in cart (parents + sub-items) -------- */
+  const cartCount = useMemo(() => {
+    return cart.reduce((sum, line) => {
+      return sum + 1 + (line.subItems?.length || 0);
+    }, 0);
+  }, [cart]);
+
   /* -------- helpers -------- */
   const inCart = useCallback(
     (item_code) => cart.some((c) => c.item_code === item_code),
@@ -441,17 +457,39 @@ const mapped = raw
     flashToast(`Added: ${item.item_name || item.item_code}`);
   };
 
+  const handleRemoveFromCatalog = (item) => {
+    if (typeof removeFromCart === "function") {
+      removeFromCart(item.item_code);
+    } else {
+      // fallback if removeFromCart isn't exported from lib/cart
+      const next = getCart().filter((c) => c.item_code !== item.item_code);
+      localStorage.setItem("amc-cart", JSON.stringify(next));
+      window.dispatchEvent(new Event("amc-cart-updated"));
+    }
+    setCart(getCart());
+    flashToast(`Removed: ${item.item_name || item.item_code}`);
+  };
+
   const handleAddSubItem = (item) => {
     if (!lineAddParent) return;
     appendToCartItem(lineAddParent.item_code, { ...item, qty: 1 });
     const next = getCart();
     setCart(next);
-    // keep parent reference fresh so running total updates
     const refreshed = next.find((c) => c.item_code === lineAddParent.item_code);
     if (refreshed) setLineAddParent(refreshed);
     flashToast(
       `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
     );
+  };
+
+  const handleRemoveSubItem = (item) => {
+    if (!lineAddParent) return;
+    removeSubItem(lineAddParent.item_code, item.item_code);
+    const next = getCart();
+    setCart(next);
+    const refreshed = next.find((c) => c.item_code === lineAddParent.item_code);
+    if (refreshed) setLineAddParent(refreshed);
+    flashToast(`Removed: ${item.item_name || item.item_code}`);
   };
 
   const retryCatalog = useCallback(() => {
@@ -490,14 +528,14 @@ const mapped = raw
             </p>
 
             <div className="amcHero__cta">
-            <button
-  type="button"
-  className="btnPrimary"
-  onClick={handleOpenAddModal}
->
-  Select Services For Quotation
-  <span aria-hidden="true">↗</span>
-</button>
+              <button
+                type="button"
+                className="btnPrimary"
+                onClick={handleOpenAddModal}
+              >
+                Select Services For Quotation
+                <span aria-hidden="true">↗</span>
+              </button>
               <a href="#services" className="btnPrimary">
                 Explore Services
                 <span aria-hidden="true">↗</span>
@@ -615,7 +653,6 @@ const mapped = raw
           {!loading && !error && amcServices.length > 0 && (
             <div className="amcGrid">
               {amcServices.map((service) => (
-                
                 <article key={service.id} id={service.id} className="amcCard">
                   <div className="amcCard__top">
                     <span className="amcCard__num">{service.number}</span>
@@ -662,8 +699,6 @@ const mapped = raw
                       View Service
                       <span aria-hidden="true">→</span>
                     </Link>
-
-                 
                   </div>
                 </article>
               ))}
@@ -793,8 +828,6 @@ const mapped = raw
                 <span className={styles.cartModal__eyebrow}>
                   ADD AMC SERVICES
                 </span>
-               
-              
               </div>
 
               <CatalogBody
@@ -808,9 +841,10 @@ const mapped = raw
                 catalogError={catalogError}
                 filteredCatalog={filteredCatalog}
                 onAdd={handleAddFromCatalog}
+                onRemove={handleRemoveFromCatalog}
                 isAdded={(code) => inCart(code)}
                 retry={retryCatalog}
-                addLabel={(added) => (added ? "Add again" : "Add")}
+                addLabel={(added) => (added ? "Add again" : "Add To Cart")}
               />
 
               <div className={styles.cartModal__actions}>
@@ -826,7 +860,7 @@ const mapped = raw
           </div>
         )}
 
-        {/* ── LINE-ADD MODAL (the one from quote-cart) ── */}
+        {/* ── LINE-ADD MODAL ── */}
         {lineAddOpen && lineAddParent && (
           <div
             className={styles.cartModal}
@@ -907,6 +941,7 @@ const mapped = raw
                 catalogError={catalogError}
                 filteredCatalog={filteredCatalog}
                 onAdd={handleAddSubItem}
+                onRemove={handleRemoveSubItem}
                 isAdded={(code) =>
                   isSubInParent(lineAddParent.item_code, code)
                 }
@@ -925,6 +960,34 @@ const mapped = raw
               </div>
             </div>
           </div>
+        )}
+
+        {/* ── FLOATING CART FAB (count badge) ── */}
+        {cartCount > 0 && (
+          <Link
+            href="/quote-cart"
+            className="amcCartFab"
+            aria-label={`View cart (${cartCount} items)`}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M6 6h15l-1.5 9h-12L6 6Zm0 0-.8-3H2"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="9" cy="20" r="1.5" fill="currentColor" />
+              <circle cx="18" cy="20" r="1.5" fill="currentColor" />
+            </svg>
+            <span className="amcCartFab__count">{cartCount}</span>
+          </Link>
         )}
 
         {toast && <div className={styles.cartToast}>{toast}</div>}

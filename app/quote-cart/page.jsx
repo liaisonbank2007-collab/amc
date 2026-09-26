@@ -53,6 +53,83 @@ const buildPrintUrl = (printUrl, { download = false } = {}) => {
 };
 
 /* =========================================================
+   Visibility helpers
+   - custom_unit  → could be: null | "" | 0 | "0" | "4" | 4
+                    Only treat as "has units" when > 0
+   - custom_visit → number 0 or 1 (or "0"/"1" strings)
+   ========================================================= */
+const hasUnitControl = (it) => {
+  const v = it.custom_unit;
+  if (v === null || v === undefined) return false;
+  const s = String(v).trim();
+  if (s === "") return false;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0;
+};
+
+const hasVisitControl = (it) => {
+  const v = it.custom_visit;
+  if (v === null || v === undefined) return false;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0;
+};
+
+const hasQtyControls = (it) => hasUnitControl(it) || hasVisitControl(it);
+
+/* =========================================================
+   Per-unit line math
+   - If custom_unit threshold exists AND units <= threshold
+       → charge custom_min_amount (flat minimum)
+   - Else → charge rate × units
+   - Visits multiply the result (separate service visits)
+   ========================================================= */
+const computeItemAmount = (it) => {
+  const rate = Number(it.rate) || 0;
+  if (rate <= 0) return 0;
+
+  const units = hasUnitControl(it) ? Number(it.units) || 1 : 1;
+  const threshold = hasUnitControl(it) ? Number(it.custom_unit) || 0 : 0;
+  const minAmount = Number(it.custom_min_amount) || 0;
+
+  if (threshold > 0 && units <= threshold) {
+    return minAmount > 0 ? minAmount : rate * units;
+  }
+
+  return rate * units;
+};
+
+const lineTotal = (it) => {
+  let total = 0;
+  let hasPayable = false;
+
+  if (it.rate && it.rate > 0) {
+    const visits = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
+    total += computeItemAmount(it) * visits;
+    hasPayable = true;
+  }
+
+  (it.subItems || []).forEach((s) => {
+    if (s.rate && s.rate > 0) {
+      const visits = hasVisitControl(s) ? Number(s.visits) || 1 : 1;
+      total += computeItemAmount(s) * visits;
+      hasPayable = true;
+    }
+  });
+
+  return { total, hasPayable };
+};
+
+const lineCounts = (it) => {
+  let visits = hasVisitControl(it) ? Number(it.visits) || 1 : 0;
+  let units = hasUnitControl(it) ? Number(it.units) || 1 : 0;
+  (it.subItems || []).forEach((s) => {
+    visits += hasVisitControl(s) ? Number(s.visits) || 1 : 0;
+    units += hasUnitControl(s) ? Number(s.units) || 1 : 0;
+  });
+  return { visits, units };
+};
+
+/* =========================================================
    SweetAlert success modal
    ========================================================= */
 const showQuoteSuccessAlert = async (quote) => {
@@ -131,36 +208,6 @@ const showQuoteSuccessAlert = async (quote) => {
     a.click();
     document.body.removeChild(a);
   }
-};
-
-/* =========================================================
-   Line math — visits × units
-   ========================================================= */
-const lineTotal = (it) => {
-  let total = 0;
-  let hasPayable = false;
-
-  if (it.rate && it.rate > 0) {
-    total += it.rate * (it.visits || 1) * (it.units || 1);
-    hasPayable = true;
-  }
-  (it.subItems || []).forEach((s) => {
-    if (s.rate && s.rate > 0) {
-      total += s.rate * (s.visits || 1) * (s.units || 1);
-      hasPayable = true;
-    }
-  });
-  return { total, hasPayable };
-};
-
-const lineCounts = (it) => {
-  let visits = it.visits || 1;
-  let units = it.units || 1;
-  (it.subItems || []).forEach((s) => {
-    visits += s.visits || 1;
-    units += s.units || 1;
-  });
-  return { visits, units };
 };
 
 export default function QuoteCartPage() {
@@ -380,7 +427,13 @@ export default function QuoteCartPage() {
   };
 
   const handleAddFromCatalog = (item) => {
-    addToCart([{ ...item, visits: 1, units: 1 }]);
+    addToCart([
+      {
+        ...item,
+        visits: 1,
+        units: 1,
+      },
+    ]);
     setCart(getCart());
     setToast(`Added: ${item.item_name || item.item_code}`);
     setTimeout(() => setToast(""), 1800);
@@ -394,9 +447,7 @@ export default function QuoteCartPage() {
       units: 1,
     });
     setCart(getCart());
-    setToast(
-      `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
-    );
+    setToast(`Added to "${lineAddParent.item_name || lineAddParent.item_code}"`);
     setTimeout(() => setToast(""), 1800);
   };
 
@@ -425,22 +476,24 @@ export default function QuoteCartPage() {
     let units = 0;
 
     cart.forEach((it) => {
-      visits += it.visits || 1;
-      units += it.units || 1;
+      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+      if (hasUnitControl(it)) units += Number(it.units) || 1;
 
       if (it.rate && it.rate > 0) {
-        subtotal += it.rate * (it.visits || 1) * (it.units || 1);
+        const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
+        subtotal += computeItemAmount(it) * v;
         payable += 1;
       } else {
         onRequest += 1;
       }
 
       (it.subItems || []).forEach((s) => {
-        visits += s.visits || 1;
-        units += s.units || 1;
+        if (hasVisitControl(s)) visits += Number(s.visits) || 1;
+        if (hasUnitControl(s)) units += Number(s.units) || 1;
 
         if (s.rate && s.rate > 0) {
-          subtotal += s.rate * (s.visits || 1) * (s.units || 1);
+          const v = hasVisitControl(s) ? Number(s.visits) || 1 : 1;
+          subtotal += computeItemAmount(s) * v;
           payable += 1;
         } else {
           onRequest += 1;
@@ -481,10 +534,11 @@ export default function QuoteCartPage() {
 
     activeQuoteItems.forEach((it) => {
       if (it.rate && it.rate > 0) {
-        sub += it.rate * (it.visits || 1) * (it.units || 1);
+        const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
+        sub += computeItemAmount(it) * v;
       }
-      visits += it.visits || 1;
-      units += it.units || 1;
+      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+      if (hasUnitControl(it)) units += Number(it.units) || 1;
     });
 
     return {
@@ -514,8 +568,8 @@ export default function QuoteCartPage() {
 
     lines.forEach((parent) => {
       const pushItem = (it) => {
-        const visits = Number(it.visits) || 1;
-        const units = Number(it.units) || 1;
+        const visits = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
+        const units = hasUnitControl(it) ? Number(it.units) || 1 : 1;
 
         const item = {
           item_code: it.item_code,
@@ -534,6 +588,10 @@ export default function QuoteCartPage() {
           rate: Number(it.rate) || 0,
           final_rate: Number(it.final_rate ?? it.rate) || 0,
           stock_uom: it.stock_uom || it.uom || "Nos",
+
+          custom_unit: it.custom_unit ?? null,
+          custom_visit: it.custom_visit ?? 0,
+          custom_min_amount: Number(it.custom_min_amount) || 0,
         };
 
         if (it.gst_hsn_code) {
@@ -723,9 +781,7 @@ export default function QuoteCartPage() {
 
   if (!mounted) return null;
 
-  const lineAddParentTotal = lineAddParent
-    ? lineTotal(lineAddParent).total
-    : 0;
+  const lineAddParentTotal = lineAddParent ? lineTotal(lineAddParent).total : 0;
 
   return (
     <>
@@ -1093,6 +1149,8 @@ export default function QuoteCartPage() {
                     const subItems = it.subItems || [];
                     const { total, hasPayable } = lineTotal(it);
                     const subCount = subItems.length;
+                    const showVisit = hasVisitControl(it);
+                    const showUnit = hasUnitControl(it);
 
                     return (
                       <li className={styles.cartItem} key={it.item_code}>
@@ -1121,85 +1179,112 @@ export default function QuoteCartPage() {
                             </p>
                           </div>
 
-                          {/* 👇 VISITS + UNITS */}
-                          <div className={styles.cartItem__counts}>
-                            <div className={styles.cartItem__count}>
-                              <span className={styles.cartItem__countLabel}>
-                                Visits
-                              </span>
-                              <div className={styles.cartItem__qty}>
-                                <button
-                                  type="button"
-                                  aria-label="Decrease visits"
-                                  onClick={() =>
-                                    updateVisits(it.item_code, -1)
-                                  }
-                                >
-                                  −
-                                </button>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={it.visits || 1}
-                                  onChange={(e) =>
-                                    setVisits(it.item_code, e.target.value)
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  aria-label="Increase visits"
-                                  onClick={() =>
-                                    updateVisits(it.item_code, 1)
-                                  }
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
+                          {/* 👇 VISITS + UNITS — only show what applies */}
+                          {hasQtyControls(it) && (
+                            <div className={styles.cartItem__counts}>
+                              {showVisit && (
+                                <div className={styles.cartItem__count}>
+                                  <span
+                                    className={styles.cartItem__countLabel}
+                                  >
+                                    Visits
+                                  </span>
+                                  <div className={styles.cartItem__qty}>
+                                    <button
+                                      type="button"
+                                      aria-label="Decrease visits"
+                                      onClick={() =>
+                                        updateVisits(it.item_code, -1)
+                                      }
+                                    >
+                                      −
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={it.visits || 1}
+                                      onChange={(e) =>
+                                        setVisits(
+                                          it.item_code,
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      aria-label="Increase visits"
+                                      onClick={() =>
+                                        updateVisits(it.item_code, 1)
+                                      }
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
 
-                            <div className={styles.cartItem__count}>
-                              <span className={styles.cartItem__countLabel}>
-                                Units
-                              </span>
-                              <div className={styles.cartItem__qty}>
-                                <button
-                                  type="button"
-                                  aria-label="Decrease units"
-                                  onClick={() =>
-                                    updateUnits(it.item_code, -1)
-                                  }
-                                >
-                                  −
-                                </button>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={it.units || 1}
-                                  onChange={(e) =>
-                                    setUnits(it.item_code, e.target.value)
-                                  }
-                                />
-                                <button
-                                  type="button"
-                                  aria-label="Increase units"
-                                  onClick={() =>
-                                    updateUnits(it.item_code, 1)
-                                  }
-                                >
-                                  +
-                                </button>
-                              </div>
+                              {showUnit && (
+                                <div className={styles.cartItem__count}>
+                                  <span
+                                    className={styles.cartItem__countLabel}
+                                  >
+                                    Units
+                                  </span>
+                                  <div className={styles.cartItem__qty}>
+                                    <button
+                                      type="button"
+                                      aria-label="Decrease units"
+                                      onClick={() =>
+                                        updateUnits(it.item_code, -1)
+                                      }
+                                    >
+                                      −
+                                    </button>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={it.units || 1}
+                                      onChange={(e) =>
+                                        setUnits(it.item_code, e.target.value)
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      aria-label="Increase units"
+                                      onClick={() =>
+                                        updateUnits(it.item_code, 1)
+                                      }
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
+                          )}
 
                           <div className={styles.cartItem__price}>
                             {hasPayable ? (
                               <>
                                 <span className={styles.cartItem__rate}>
-                                  {it.visits || 1} visit
-                                  {(it.visits || 1) > 1 ? "s" : ""} ×{" "}
-                                  {it.units || 1} unit
-                                  {(it.units || 1) > 1 ? "s" : ""}
+                                  {(() => {
+                                    const parts = [];
+                                    if (showVisit)
+                                      parts.push(
+                                        `${it.visits || 1} visit${
+                                          (it.visits || 1) > 1 ? "s" : ""
+                                        }`
+                                      );
+                                    if (showUnit)
+                                      parts.push(
+                                        `${it.units || 1} unit${
+                                          (it.units || 1) > 1 ? "s" : ""
+                                        }`
+                                      );
+                                    return parts.length
+                                      ? parts.join(" × ")
+                                      : "Fixed";
+                                  })()}
                                 </span>
                                 <span className={styles.cartItem__line}>
                                   {inr(total, it.currency)}
@@ -1235,6 +1320,8 @@ export default function QuoteCartPage() {
                           <ul className={styles.cartItem__subs}>
                             {subItems.map((s) => {
                               const sName = s.item_name || s.item_code;
+                              const sShowVisit = hasVisitControl(s);
+                              const sShowUnit = hasUnitControl(s);
                               return (
                                 <li
                                   key={s.item_code}
@@ -1253,115 +1340,124 @@ export default function QuoteCartPage() {
                                     </span>
                                   </div>
 
-                                  {/* 👇 Sub VISITS + UNITS */}
-                                  <div className={styles.subItem__counts}>
-                                    <div className={styles.subItem__count}>
-                                      <span
-                                        className={
-                                          styles.subItem__countLabel
-                                        }
-                                      >
-                                        Visits
-                                      </span>
-                                      <div className={styles.subItem__qty}>
-                                        <button
-                                          type="button"
-                                          aria-label="Decrease visits"
-                                          onClick={() =>
-                                            handleSubVisits(
-                                              it.item_code,
-                                              s.item_code,
-                                              (s.visits || 1) - 1
-                                            )
-                                          }
+                                  {/* 👇 Sub VISITS + UNITS — only show what applies */}
+                                  {hasQtyControls(s) && (
+                                    <div className={styles.subItem__counts}>
+                                      {sShowVisit && (
+                                        <div
+                                          className={styles.subItem__count}
                                         >
-                                          −
-                                        </button>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          value={s.visits || 1}
-                                          onChange={(e) =>
-                                            handleSubVisits(
-                                              it.item_code,
-                                              s.item_code,
-                                              e.target.value
-                                            )
-                                          }
-                                        />
-                                        <button
-                                          type="button"
-                                          aria-label="Increase visits"
-                                          onClick={() =>
-                                            handleSubVisits(
-                                              it.item_code,
-                                              s.item_code,
-                                              (s.visits || 1) + 1
-                                            )
-                                          }
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    </div>
+                                          <span
+                                            className={
+                                              styles.subItem__countLabel
+                                            }
+                                          >
+                                            Visits
+                                          </span>
+                                          <div className={styles.subItem__qty}>
+                                            <button
+                                              type="button"
+                                              aria-label="Decrease visits"
+                                              onClick={() =>
+                                                handleSubVisits(
+                                                  it.item_code,
+                                                  s.item_code,
+                                                  (s.visits || 1) - 1
+                                                )
+                                              }
+                                            >
+                                              −
+                                            </button>
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              value={s.visits || 1}
+                                              onChange={(e) =>
+                                                handleSubVisits(
+                                                  it.item_code,
+                                                  s.item_code,
+                                                  e.target.value
+                                                )
+                                              }
+                                            />
+                                            <button
+                                              type="button"
+                                              aria-label="Increase visits"
+                                              onClick={() =>
+                                                handleSubVisits(
+                                                  it.item_code,
+                                                  s.item_code,
+                                                  (s.visits || 1) + 1
+                                                )
+                                              }
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
 
-                                    <div className={styles.subItem__count}>
-                                      <span
-                                        className={
-                                          styles.subItem__countLabel
-                                        }
-                                      >
-                                        Units
-                                      </span>
-                                      <div className={styles.subItem__qty}>
-                                        <button
-                                          type="button"
-                                          aria-label="Decrease units"
-                                          onClick={() =>
-                                            handleSubUnits(
-                                              it.item_code,
-                                              s.item_code,
-                                              (s.units || 1) - 1
-                                            )
-                                          }
+                                      {sShowUnit && (
+                                        <div
+                                          className={styles.subItem__count}
                                         >
-                                          −
-                                        </button>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          value={s.units || 1}
-                                          onChange={(e) =>
-                                            handleSubUnits(
-                                              it.item_code,
-                                              s.item_code,
-                                              e.target.value
-                                            )
-                                          }
-                                        />
-                                        <button
-                                          type="button"
-                                          aria-label="Increase units"
-                                          onClick={() =>
-                                            handleSubUnits(
-                                              it.item_code,
-                                              s.item_code,
-                                              (s.units || 1) + 1
-                                            )
-                                          }
-                                        >
-                                          +
-                                        </button>
-                                      </div>
+                                          <span
+                                            className={
+                                              styles.subItem__countLabel
+                                            }
+                                          >
+                                            Units
+                                          </span>
+                                          <div className={styles.subItem__qty}>
+                                            <button
+                                              type="button"
+                                              aria-label="Decrease units"
+                                              onClick={() =>
+                                                handleSubUnits(
+                                                  it.item_code,
+                                                  s.item_code,
+                                                  (s.units || 1) - 1
+                                                )
+                                              }
+                                            >
+                                              −
+                                            </button>
+                                            <input
+                                              type="number"
+                                              min="1"
+                                              value={s.units || 1}
+                                              onChange={(e) =>
+                                                handleSubUnits(
+                                                  it.item_code,
+                                                  s.item_code,
+                                                  e.target.value
+                                                )
+                                              }
+                                            />
+                                            <button
+                                              type="button"
+                                              aria-label="Increase units"
+                                              onClick={() =>
+                                                handleSubUnits(
+                                                  it.item_code,
+                                                  s.item_code,
+                                                  (s.units || 1) + 1
+                                                )
+                                              }
+                                            >
+                                              +
+                                            </button>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
+                                  )}
 
                                   <div className={styles.subItem__price}>
                                     {s.rate && s.rate > 0
                                       ? inr(
-                                          s.rate *
-                                            (s.visits || 1) *
-                                            (s.units || 1),
+                                          computeItemAmount(s) *
+                                            (sShowVisit ? s.visits || 1 : 1),
                                           s.currency
                                         )
                                       : "On request"}
@@ -1694,15 +1790,29 @@ export default function QuoteCartPage() {
                     {lineAddParent.item_name || lineAddParent.item_code}
                   </strong>
                   <span>
-                    {lineAddParent.visits || 1} visit
-                    {(lineAddParent.visits || 1) > 1 ? "s" : ""} ×{" "}
-                    {lineAddParent.units || 1} unit
-                    {(lineAddParent.units || 1) > 1 ? "s" : ""} ·{" "}
-                    {lineAddParent.uom || "Nos"}
-                    {(lineAddParent.subItems || []).length > 0 &&
-                      ` · ${lineAddParent.subItems.length} add-on${
-                        lineAddParent.subItems.length > 1 ? "s" : ""
-                      }`}
+                    {(() => {
+                      const parts = [];
+                      if (hasVisitControl(lineAddParent))
+                        parts.push(
+                          `${lineAddParent.visits || 1} visit${
+                            (lineAddParent.visits || 1) > 1 ? "s" : ""
+                          }`
+                        );
+                      if (hasUnitControl(lineAddParent))
+                        parts.push(
+                          `${lineAddParent.units || 1} unit${
+                            (lineAddParent.units || 1) > 1 ? "s" : ""
+                          }`
+                        );
+                      parts.push(lineAddParent.uom || "Nos");
+                      if ((lineAddParent.subItems || []).length > 0)
+                        parts.push(
+                          `${lineAddParent.subItems.length} add-on${
+                            lineAddParent.subItems.length > 1 ? "s" : ""
+                          }`
+                        );
+                      return parts.join(" · ");
+                    })()}
                   </span>
                 </div>
                 <div className={styles.lineAddParent__priceWrap}>
@@ -1798,39 +1908,51 @@ export default function QuoteCartPage() {
               </div>
 
               <div className={styles.cartModal__preview}>
-                {activeQuoteItems.map((it, idx) => (
-                  <div
-                    key={`${it.item_code}-${idx}`}
-                    className={styles.cartModal__previewRow}
-                  >
-                    <div className={styles.cartModal__previewThumb}>
-                      {(it.item_name || it.item_code)
-                        .slice(0, 2)
-                        .toUpperCase()}
+                {activeQuoteItems.map((it, idx) => {
+                  const showVisit = hasVisitControl(it);
+                  const showUnit = hasUnitControl(it);
+                  const parts = [];
+                  if (showVisit)
+                    parts.push(
+                      `${it.visits || 1} visit${
+                        (it.visits || 1) > 1 ? "s" : ""
+                      }`
+                    );
+                  if (showUnit)
+                    parts.push(
+                      `${it.units || 1} unit${
+                        (it.units || 1) > 1 ? "s" : ""
+                      }`
+                    );
+                  parts.push(it.uom || it.stock_uom || "Nos");
+                  if (it.amc_sub_type_name) parts.push(it.amc_sub_type_name);
+
+                  return (
+                    <div
+                      key={`${it.item_code}-${idx}`}
+                      className={styles.cartModal__previewRow}
+                    >
+                      <div className={styles.cartModal__previewThumb}>
+                        {(it.item_name || it.item_code)
+                          .slice(0, 2)
+                          .toUpperCase()}
+                      </div>
+                      <div className={styles.cartModal__previewInfo}>
+                        <strong>{it.item_name || it.item_code}</strong>
+                        <span>{parts.join(" · ")}</span>
+                      </div>
+                      <div className={styles.cartModal__previewPrice}>
+                        {it.rate && it.rate > 0
+                          ? inr(
+                              computeItemAmount(it) *
+                                (showVisit ? it.visits || 1 : 1),
+                              it.currency
+                            )
+                          : "On request"}
+                      </div>
                     </div>
-                    <div className={styles.cartModal__previewInfo}>
-                      <strong>{it.item_name || it.item_code}</strong>
-                      <span>
-                        {it.visits || 1} visit
-                        {(it.visits || 1) > 1 ? "s" : ""} ×{" "}
-                        {it.units || 1} unit
-                        {(it.units || 1) > 1 ? "s" : ""} ·{" "}
-                        {it.uom || it.stock_uom || "Nos"}
-                        {it.amc_sub_type_name
-                          ? ` · ${it.amc_sub_type_name}`
-                          : ""}
-                      </span>
-                    </div>
-                    <div className={styles.cartModal__previewPrice}>
-                      {it.rate && it.rate > 0
-                        ? inr(
-                            it.rate * (it.visits || 1) * (it.units || 1),
-                            it.currency
-                          )
-                        : "On request"}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <form
