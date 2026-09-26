@@ -595,7 +595,7 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
         custom_visit,
 
         rate: Number(it.rate) || 0,        // per-unit rate
-        final_rate: lineSubtotal,          // 👈 this line's subtotal
+        // final_rate: lineSubtotal,          // 👈 this line's subtotal
 
         stock_uom: it.stock_uom || it.uom || "Nos",
       };
