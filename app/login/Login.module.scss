@@ -1,0 +1,556 @@
+// ============================================
+// VARIABLES — Orange / Cream Theme
+// ============================================
+$color-bg-start: #fdf6ec;
+$color-bg-mid:   #f6f4ef;
+$color-bg-end:   #f0e9dc;
+
+$color-surface:       rgba(255, 255, 255, 0.75);
+$color-surface-hover: #ffffff;
+$color-border:        #e6e1d6;
+$color-border-hover:  #e8913a;
+
+$color-text-primary:   #0e1116;
+$color-text-secondary: #4b5563;
+$color-text-muted:     #6b7280;
+$color-text-dim:       #9ca3af;
+
+$color-primary:       #e8913a;
+$color-primary-hover: #d97a1f;
+$color-primary-light: #f0a95c;
+$color-amber:         #f59e0b;
+$color-terracotta:    #c2410c;
+
+$color-danger: #b91c1c;
+
+$font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+$space-xs: 0.25rem;
+$space-sm: 0.5rem;
+$space-md: 1rem;
+$space-lg: 1.5rem;
+$space-xl: 2rem;
+$space-2xl: 2.5rem;
+$space-3xl: 3rem;
+
+$radius-sm: 0.375rem;
+$radius-md: 0.5rem;
+$radius-lg: 0.75rem;
+$radius-xl: 1rem;
+$radius-2xl: 1.5rem;
+$radius-3xl: 1.75rem;
+$radius-full: 9999px;
+
+$shadow-card: 0 30px 60px -20px rgba(168, 83, 26, 0.18),
+              0 8px 24px -8px rgba(15, 17, 22, 0.08);
+$shadow-primary:       0 10px 15px -3px rgba(232, 145, 58, 0.35);
+$shadow-primary-hover: 0 20px 30px -8px rgba(232, 145, 58, 0.5);
+
+$transition-fast: 150ms ease;
+$transition-base: 300ms cubic-bezier(0.22, 1, 0.36, 1);
+
+$bp-sm: 640px;
+
+// ============================================
+// MIXINS
+// ============================================
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@mixin flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@mixin flex-col {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin glass($opacity: 0.75, $blur: 20px) {
+  background: rgba(255, 255, 255, $opacity);
+  backdrop-filter: blur($blur);
+  -webkit-backdrop-filter: blur($blur);
+  border: 1px solid $color-border;
+}
+
+@mixin focus-ring($color: $color-primary, $size: 2px) {
+  outline: none;
+  box-shadow: 0 0 0 $size rgba($color, 0.35);
+}
+
+// ============================================
+// ANIMATIONS
+// ============================================
+@keyframes float {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(40px, 30px) scale(1.1); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 0.45; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+// ============================================
+// PAGE
+// ============================================
+.page {
+  min-height: 100vh;
+  @include flex-center;
+  position: relative;
+  overflow: hidden;
+  padding: $space-lg;
+  font-family: $font-family-base;
+  background:
+    radial-gradient(ellipse 80% 60% at 80% 0%, rgba(232, 145, 58, 0.18), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 0% 40%, rgba(194, 65, 12, 0.10), transparent 60%),
+    linear-gradient(135deg, $color-bg-start 0%, $color-bg-mid 50%, $color-bg-end 100%);
+  color: $color-text-primary;
+}
+
+// ============================================
+// BACKGROUND
+// ============================================
+.backgroundLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: $radius-full;
+  filter: blur(80px);
+  opacity: 0.28;
+}
+
+.orbPurple {
+  top: -10rem;
+  right: -10rem;
+  width: 22rem;
+  height: 22rem;
+  background: $color-primary;
+  animation: pulse-glow 5s ease-in-out infinite;
+}
+
+.orbBlue {
+  bottom: -10rem;
+  left: -10rem;
+  width: 22rem;
+  height: 22rem;
+  background: $color-amber;
+  animation: pulse-glow 5s ease-in-out infinite 2s;
+}
+
+.orbIndigo {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 26rem;
+  height: 26rem;
+  background: $color-terracotta;
+  opacity: 0.14;
+  animation: pulse-glow 5s ease-in-out infinite 4s;
+}
+
+.gridOverlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  background-image:
+    linear-gradient(rgba(15, 17, 22, 0.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 17, 22, 0.35) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 90%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 90%);
+}
+
+// ============================================
+// CARD
+// ============================================
+.cardWrapper {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 $space-md;
+}
+
+.card {
+  @include glass(0.85, 24px);
+  border-radius: $radius-3xl;
+  box-shadow: $shadow-card;
+  overflow: hidden;
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.accentBar {
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, $color-primary, $color-amber, $color-terracotta);
+}
+
+.cardInner {
+  padding: $space-xl;
+
+  @media (min-width: $bp-sm) {
+    padding: $space-2xl;
+  }
+}
+
+// ============================================
+// HEADER
+// ============================================
+.header {
+  text-align: center;
+  margin-bottom: $space-2xl;
+}
+
+.logoWrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  border-radius: $radius-2xl;
+  background: linear-gradient(135deg, $color-primary, $color-terracotta);
+  box-shadow: $shadow-primary;
+  margin-bottom: $space-md;
+}
+
+.logoIcon {
+  width: 2rem;
+  height: 2rem;
+  color: #ffffff;
+}
+
+.title {
+  font-size: 1.875rem;
+  font-weight: 700;
+  color: $color-text-primary;
+  letter-spacing: -0.025em;
+  margin-bottom: $space-sm;
+}
+
+.subtitle {
+  color: $color-text-secondary;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+// ============================================
+// FORM
+// ============================================
+.form {
+  @include flex-col;
+  gap: $space-lg;
+}
+
+.field {
+  @include flex-col;
+  gap: $space-sm;
+}
+
+.label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $color-text-primary;
+  margin-left: $space-xs;
+}
+
+.inputWrapper {
+  position: relative;
+
+  &:focus-within {
+    .inputIcon { color: $color-primary-hover; }
+
+    .input {
+      border-color: $color-primary;
+      box-shadow: 0 0 0 3px rgba($color-primary, 0.18);
+      background: #ffffff;
+    }
+  }
+}
+
+.inputIconWrapper {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  padding-left: $space-md;
+  @include flex-center;
+  pointer-events: none;
+}
+
+.inputIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: $color-text-muted;
+  transition: color $transition-base;
+}
+
+.input {
+  width: 100%;
+  padding: $space-md $space-md $space-md $space-3xl;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid $color-border;
+  border-radius: $radius-xl;
+  color: $color-text-primary;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: all $transition-base;
+
+  &::placeholder { color: $color-text-dim; }
+
+  &:hover { border-color: rgba($color-primary, 0.4); }
+
+  &:focus { outline: none; }
+}
+
+// ============================================
+// ACTIONS ROW
+// ============================================
+.actionsRow {
+  @include flex-between;
+  font-size: 0.875rem;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: $space-sm;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkboxInput {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.checkboxBox {
+  position: relative;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: $radius-sm;
+  border: 1.5px solid $color-border-hover;
+  background: #ffffff;
+  @include flex-center;
+  transition: all $transition-base;
+
+  .checkboxInput:checked + & {
+    background: $color-primary;
+    border-color: $color-primary;
+  }
+}
+
+.checkboxCheck {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: #ffffff;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all $transition-base;
+
+  .checkboxInput:checked + .checkboxBox & {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.checkboxText {
+  color: $color-text-secondary;
+  transition: color $transition-base;
+
+  .checkboxLabel:hover & { color: $color-text-primary; }
+}
+
+.forgotLink {
+  color: $color-primary-hover;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color $transition-base;
+
+  &:hover { color: $color-terracotta; }
+}
+
+// ============================================
+// SUBMIT BUTTON
+// ============================================
+.submitButton {
+  position: relative;
+  width: 100%;
+  padding: $space-md $space-lg;
+  border-radius: $radius-xl;
+  font-weight: 700;
+  font-size: 1rem;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  background: linear-gradient(90deg, $color-primary, $color-primary-hover);
+  border: none;
+  cursor: pointer;
+  box-shadow: $shadow-primary;
+  transition: all $transition-base;
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(90deg, $color-primary-hover, $color-terracotta);
+    transform: translateY(-2px);
+    box-shadow: $shadow-primary-hover;
+  }
+
+  &:active:not(:disabled) { transform: translateY(0); }
+
+  &:focus-visible { @include focus-ring($color-primary, 3px); }
+
+  &:disabled {
+    opacity: 0.75;
+    cursor: not-allowed;
+    transform: none;
+  }
+}
+
+.loadingContent {
+  @include flex-center;
+  gap: $space-md;
+}
+
+.spinner {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #ffffff;
+  animation: spin 1s linear infinite;
+}
+
+.spinnerCircle { opacity: 0.3; }
+.spinnerPath   { opacity: 0.85; }
+
+// ============================================
+// DIVIDER
+// ============================================
+.divider {
+  position: relative;
+  margin: $space-xl 0;
+}
+
+.dividerLine {
+  position: absolute;
+  inset: 0;
+  @include flex-center;
+
+  &::before {
+    content: '';
+    width: 100%;
+    border-top: 1px solid $color-border;
+  }
+}
+
+.dividerContent { display: flex; justify-content: center; }
+
+.dividerText {
+  position: relative;
+  padding: 0 $space-md;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: $color-text-muted;
+  background: transparent;
+}
+
+// ============================================
+// SOCIAL BUTTONS
+// ============================================
+.socialGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: $space-md;
+}
+
+.socialButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-sm;
+  padding: $space-md;
+  border-radius: $radius-xl;
+  background: #ffffff;
+  border: 1px solid $color-border;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all $transition-base;
+
+  &:hover {
+    background: #ffffff;
+    border-color: $color-primary;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 20px -8px rgba(232, 145, 58, 0.35);
+
+    .socialIcon, .socialText { color: $color-primary-hover; }
+  }
+}
+
+.socialIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: $color-text-secondary;
+  transition: color $transition-base;
+}
+
+.socialText {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $color-text-primary;
+  transition: color $transition-base;
+}
+
+// ============================================
+// FOOTER
+// ============================================
+.signupText {
+  margin-top: $space-xl;
+  text-align: center;
+  font-size: 0.875rem;
+  color: $color-text-muted;
+}
+
+.signupLink {
+  color: $color-primary-hover;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color $transition-base;
+
+  &:hover { color: $color-terracotta; }
+}
+
+.pageFooter {
+  margin-top: $space-lg;
+  text-align: center;
+  font-size: 0.75rem;
+  color: $color-text-dim;
+}
+
+// ============================================
+// RESPONSIVE
+// ============================================
+@media (max-width: 640px) {
+  .cardInner { padding: $space-xl $space-lg; }
+  .title     { font-size: 1.5rem; }
+}

@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
+  async rewrites() {
+    return [
+      {
+        source: "/api/frappe/:path*",
+        destination: "https://liaisonbank.frappe.cloud/api/method/:path*",
+      },
+    ];
+  },
   reactCompiler: true,
 };
 

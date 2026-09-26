@@ -1,0 +1,714 @@
+/* ============================================================
+   LIAISON BANK · PREMIUM REGISTRATION
+   ============================================================ */
+
+/* ---------- Tokens ---------- */
+$brand-400: #fb923c;
+$brand-500: #f97316;
+$brand-600: #ea580c;
+$brand-700: #c2410c;
+
+$amber-500: #f59e0b;
+$amber-600: #d97706;
+
+$ink-950: #0c0a09;
+$ink-900: #1c1917;
+$ink-800: #292524;
+$ink-700: #44403c;
+$ink-600: #57534e;
+$ink-500: #78716c;
+$ink-400: #a8a29e;
+$ink-300: #d6d3d1;
+$ink-200: #e7e5e4;
+$ink-100: #f5f5f4;
+$ink-50:  #fafaf9;
+
+$success-500: #10b981;
+$success-600: #059669;
+$danger-500:  #ef4444;
+$danger-600:  #dc2626;
+
+$radius-sm: 10px;
+$radius-md: 14px;
+$radius-lg: 20px;
+$radius-xl: 28px;
+
+$ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+$ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+/* ============================================================
+   PAGE
+   ============================================================ */
+.page {
+  position: relative;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1.25rem;
+  overflow: hidden;
+  background: #fffbf6;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: $ink-900;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* Ambient mesh gradient background */
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 70% 55% at 15% 0%,  rgba(251, 146, 60, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 85% 100%, rgba(245, 158, 11, 0.18), transparent 55%),
+    radial-gradient(ellipse 90% 70% at 50% 50%,  rgba(254, 243, 199, 0.55), transparent 70%),
+    linear-gradient(180deg, #fffdfa 0%, #fff7ee 55%, #fef2e2 100%);
+  pointer-events: none;
+}
+
+/* Fine grain for texture */
+.page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.55 0 0 0 0 0.3 0 0 0 0 0.15 0 0 0 0.4 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  opacity: 0.035;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* ---------- Decorative blobs ---------- */
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  pointer-events: none;
+  will-change: transform;
+}
+.blobTopLeft {
+  top: -14rem;
+  left: -14rem;
+  width: 30rem;
+  height: 30rem;
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.55) 0%, rgba(251, 146, 60, 0) 70%);
+}
+.blobBottomRight {
+  bottom: -14rem;
+  right: -14rem;
+  width: 30rem;
+  height: 30rem;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.45) 0%, rgba(245, 158, 11, 0) 70%);
+}
+.blobCenter {
+  top: 45%;
+  left: 50%;
+  width: 20rem;
+  height: 20rem;
+  transform: translateX(-50%);
+  background: radial-gradient(circle, rgba(254, 215, 170, 0.4) 0%, rgba(254, 215, 170, 0) 70%);
+  opacity: 0.7;
+}
+
+/* ============================================================
+   WRAPPER / CARD
+   ============================================================ */
+.wrapper {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 30rem;
+}
+
+.card {
+  position: relative;
+  padding: 2.75rem 2.5rem 2.25rem;
+  border-radius: $radius-xl;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  box-shadow:
+    0 0 0 1px rgba(120, 53, 15, 0.06),
+    0 1px 0 0 rgba(255, 255, 255, 0.9) inset,
+    0 2px 4px -1px rgba(120, 53, 15, 0.04),
+    0 24px 48px -16px rgba(194, 65, 12, 0.16),
+    0 48px 96px -40px rgba(120, 53, 15, 0.14);
+}
+
+/* Warm top highlight line */
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(251, 146, 60, 0.55) 30%,
+    rgba(245, 158, 11, 0.55) 70%,
+    transparent
+  );
+  border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+  .card {
+    padding: 2rem 1.5rem 1.75rem;
+    border-radius: $radius-lg;
+  }
+}
+
+/* ============================================================
+   BRAND
+   ============================================================ */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.brandIcon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  margin-bottom: 1.125rem;
+  border-radius: 16px;
+  background: linear-gradient(140deg, $brand-400 0%, $brand-600 55%, $brand-700 100%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 -1px 0 rgba(120, 53, 15, 0.35) inset,
+    0 12px 24px -8px rgba(234, 88, 12, 0.55),
+    0 4px 10px -2px rgba(234, 88, 12, 0.3);
+}
+
+.brandIcon::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+  border-radius: 24px;
+  background: radial-gradient(circle, rgba(251, 146, 60, 0.4) 0%, transparent 65%);
+  z-index: -1;
+  filter: blur(12px);
+  animation: pulseGlow 4s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.08); }
+}
+
+.brandIcon svg {
+  width: 1.75rem;
+  height: 1.75rem;
+  color: #fff;
+  filter: drop-shadow(0 1px 1px rgba(120, 53, 15, 0.35));
+}
+
+.title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.028em;
+  line-height: 1.15;
+  color: $ink-950;
+  background: linear-gradient(135deg, $ink-950 0%, $brand-700 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+  font-weight: 450;
+  color: $ink-500;
+  letter-spacing: 0.005em;
+}
+
+/* ============================================================
+   ALERT
+   ============================================================ */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin-bottom: 1.5rem;
+  padding: 0.85rem 1rem;
+  border-radius: $radius-md;
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: alertIn 0.4s $ease-out;
+}
+
+@keyframes alertIn {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+}
+
+.alertSuccess {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.22);
+  color: $success-600;
+}
+
+.alertError {
+  background: rgba(239, 68, 68, 0.07);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: $danger-600;
+}
+
+.alertIcon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  margin-top: 0.05rem;
+}
+
+.alertIcon svg { width: 1.1rem; height: 1.1rem; }
+
+.alertText { font-weight: 500; }
+
+/* ============================================================
+   FORM
+   ============================================================ */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+@media (max-width: 560px) {
+  .row { grid-template-columns: 1fr; }
+}
+
+.field { position: relative; }
+
+/* ---------- Input ---------- */
+.input {
+  width: 100%;
+  padding: 1.45rem 1rem 0.5rem 1rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: $ink-900;
+  background: #fff;
+  border: 1px solid $ink-200;
+  border-radius: $radius-md;
+  outline: none;
+  transition:
+    border-color 0.2s $ease-out,
+    box-shadow   0.2s $ease-out,
+    background   0.2s $ease-out;
+  box-shadow:
+    0 1px 2px rgba(120, 53, 15, 0.03) inset,
+    0 1px 0 rgba(255, 255, 255, 0.6);
+  appearance: none;
+}
+
+.input::placeholder { color: transparent; }
+
+.input:hover:not(:focus):not(:disabled) {
+  border-color: $ink-300;
+}
+
+.input:focus {
+  border-color: $brand-500;
+  background: #fffdfb;
+  box-shadow:
+    0 0 0 4px rgba(249, 115, 22, 0.12),
+    0 1px 2px rgba(120, 53, 15, 0.03) inset;
+}
+
+.input:disabled {
+  background: $ink-50;
+  color: $ink-500;
+  cursor: not-allowed;
+}
+
+.inputWithIcon { padding-right: 3.25rem; }
+
+.inputError {
+  border-color: $danger-500;
+  background: #fffbfb;
+}
+
+.inputError:focus {
+  border-color: $danger-500;
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.12);
+}
+
+/* Autofill override */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  -webkit-text-fill-color: $ink-900;
+  -webkit-box-shadow: 0 0 0 1000px #fffdfb inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
+/* ---------- Label ---------- */
+.label {
+  position: absolute;
+  top: 0.5rem;
+  left: 1rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: $ink-500;
+  pointer-events: none;
+  transition: all 0.2s $ease-out;
+}
+
+.input:placeholder-shown + .label {
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  font-weight: 450;
+  letter-spacing: 0;
+  text-transform: none;
+  color: $ink-400;
+}
+
+.input:focus + .label {
+  top: 0.5rem;
+  transform: translateY(0);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: $brand-600;
+}
+
+/* ---------- Error text ---------- */
+.error {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+  padding-left: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: $danger-600;
+  animation: errorIn 0.25s $ease-out;
+}
+
+@keyframes errorIn {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.error svg { width: 0.8rem; height: 0.8rem; flex-shrink: 0; }
+
+/* ============================================================
+   PASSWORD
+   ============================================================ */
+.togglePassword {
+  position: absolute;
+  top: 1.15rem;
+  right: 0.5rem;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: $ink-400;
+  cursor: pointer;
+  transition: all 0.18s $ease-out;
+}
+
+.togglePassword:hover {
+  background: $ink-100;
+  color: $brand-600;
+}
+
+.togglePassword:focus-visible {
+  outline: 2px solid $brand-500;
+  outline-offset: 2px;
+}
+
+.togglePassword svg { width: 1.1rem; height: 1.1rem; }
+
+/* ---------- Strength meter ---------- */
+.strength {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+  padding: 0 0.1rem;
+  animation: errorIn 0.25s $ease-out;
+}
+
+.strengthBars {
+  display: flex;
+  flex: 1;
+  gap: 0.25rem;
+}
+
+.strengthBar {
+  flex: 1;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: $ink-200;
+  transition: background 0.35s $ease-out, box-shadow 0.35s $ease-out;
+}
+
+.strength_weak   { background: $danger-500;  box-shadow: 0 0 6px rgba(239, 68, 68, 0.35); }
+.strength_fair   { background: $amber-500;   box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.strength_good   { background: $brand-500;   box-shadow: 0 0 6px rgba(249, 115, 22, 0.45); }
+.strength_strong { background: $success-500; box-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
+
+.strengthLabel {
+  min-width: 3.75rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  text-align: right;
+}
+
+.strengthLabel_weak   { color: $danger-600; }
+.strengthLabel_fair   { color: $amber-600; }
+.strengthLabel_good   { color: $brand-600; }
+.strengthLabel_strong { color: $success-600; }
+
+/* ============================================================
+   TERMS
+   ============================================================ */
+.terms {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.15rem 0;
+  font-size: 0.83rem;
+  line-height: 1.5;
+  color: $ink-600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  margin-top: 0.15rem;
+  border: 1.5px solid $ink-300;
+  border-radius: 5px;
+  accent-color: $brand-500;
+  cursor: pointer;
+  transition: border-color 0.15s $ease-out, transform 0.15s $ease-out;
+}
+
+.checkbox:hover { border-color: $brand-400; }
+
+.checkbox:checked {
+  transform: scale(1.05);
+}
+
+/* ============================================================
+   SUBMIT BUTTON
+   ============================================================ */
+.submit {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.95rem 1.5rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: #fff;
+  background: linear-gradient(135deg, $brand-500 0%, $brand-600 60%, $brand-700 100%);
+  border: none;
+  border-radius: $radius-md;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform 0.2s $ease-out,
+    box-shadow 0.2s $ease-out,
+    filter 0.2s $ease-out;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.4) inset,
+    0 -1px 0 rgba(120, 53, 15, 0.35) inset,
+    0 10px 22px -8px rgba(234, 88, 12, 0.55),
+    0 4px 10px -3px rgba(234, 88, 12, 0.3);
+}
+
+.submit::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 45%);
+  opacity: 0;
+  transition: opacity 0.25s $ease-out;
+  pointer-events: none;
+}
+
+.submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.03);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.45) inset,
+    0 -1px 0 rgba(120, 53, 15, 0.35) inset,
+    0 16px 32px -10px rgba(234, 88, 12, 0.65),
+    0 6px 14px -4px rgba(234, 88, 12, 0.4);
+}
+
+.submit:hover:not(:disabled)::before { opacity: 1; }
+
+.submit:active:not(:disabled) {
+  transform: translateY(0) scale(0.995);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.35) inset,
+    0 -1px 0 rgba(120, 53, 15, 0.4) inset,
+    0 6px 14px -6px rgba(234, 88, 12, 0.5);
+}
+
+.submit:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 4px rgba(249, 115, 22, 0.35),
+    0 10px 22px -8px rgba(234, 88, 12, 0.55);
+}
+
+.submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+  transform: none;
+  filter: saturate(0.85);
+}
+
+.shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 25%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 75%
+  );
+  transform: translateX(-120%);
+  transition: transform 1s $ease-out;
+  pointer-events: none;
+}
+
+.submit:hover:not(:disabled) .shimmer { transform: translateX(120%); }
+
+.arrow {
+  width: 1rem;
+  height: 1rem;
+  transition: transform 0.25s $ease-out;
+}
+
+.submit:hover:not(:disabled) .arrow { transform: translateX(3px); }
+
+/* ---------- Spinner ---------- */
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  animation: spin 0.75s linear infinite;
+}
+
+.spinnerTrack { opacity: 0.3; }
+.spinnerHead  { opacity: 0.85; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.footer {
+  margin-top: 1.75rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(120, 53, 15, 0.08);
+  font-size: 0.85rem;
+  text-align: center;
+  color: $ink-500;
+}
+
+.link {
+  position: relative;
+  color: $brand-600;
+  font-weight: 650;
+  text-decoration: none;
+  transition: color 0.15s $ease-out;
+}
+
+.link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 1.5px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.25s $ease-out;
+}
+
+.link:hover { color: $brand-700; }
+.link:hover::after { transform: scaleX(1); }
+
+/* ============================================================
+   TRUST BADGE
+   ============================================================ */
+.trustBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 1.5rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: $ink-500;
+}
+
+.trustBadge svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: $brand-500;
+}
+
+/* ============================================================
+   ACCESSIBILITY
+   ============================================================ */
+.page :focus-visible {
+  outline: 2px solid $brand-500;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page *,
+  .page *::before,
+  .page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
