@@ -5,6 +5,9 @@ import Link from "next/link";
 import "./amc.scss";
 import AMCNavbar from "@/components/Navbar/Navbar.jsx";
 import styles from "../app/quote-cart/cart.module.scss";
+import { useRouter } from "next/navigation"; // 👈 add this
+import { isUserLoggedIn } from "@/lib/auth"; // 👈 add this
+
 import {
   getCart,
   addToCart,
@@ -218,6 +221,8 @@ export default function Page() {
   const [amcServices, setAmcServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+    const router = useRouter(); // 👈 add this
+
 
   // cart (persisted)
   const [cart, setCart] = useState([]);
@@ -239,6 +244,18 @@ export default function Page() {
 
   const [toast, setToast] = useState("");
 
+
+  const handleOpenAddModal = useCallback(() => {
+  if (!isUserLoggedIn()) {
+    // Preserve where the user was so you can send them back after login
+    const redirectTo = encodeURIComponent(
+      window.location.pathname + window.location.search + "#services"
+    );
+    router.push(`/login?redirect=${redirectTo}`);
+    return;
+  }
+  setAddOpen(true);
+}, [router]);
   /* -------- hydrate cart -------- */
   useEffect(() => {
     setMounted(true);
@@ -473,14 +490,14 @@ const mapped = raw
             </p>
 
             <div className="amcHero__cta">
-              <button
-                type="button"
-                className="btnPrimary"
-                onClick={() => setAddOpen(true)}
-              >
-                Select Services For Quotation
-                <span aria-hidden="true">↗</span>
-              </button>
+            <button
+  type="button"
+  className="btnPrimary"
+  onClick={handleOpenAddModal}
+>
+  Select Services For Quotation
+  <span aria-hidden="true">↗</span>
+</button>
               <a href="#services" className="btnPrimary">
                 Explore Services
                 <span aria-hidden="true">↗</span>
