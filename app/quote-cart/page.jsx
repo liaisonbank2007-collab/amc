@@ -576,7 +576,7 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
 
       // qty = what backend multiplies `rate` by
       const qty =  units;
-
+      const custom_visit = visits
       // line subtotal — same value shown on that cart line
       const lineSubtotal = computeItemAmount(it) * visits;
 
@@ -592,7 +592,7 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
         amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
 
         qty,
-        visits,
+        custom_visit,
 
         rate: Number(it.rate) || 0,        // per-unit rate
         final_rate: lineSubtotal,          // 👈 this line's subtotal
