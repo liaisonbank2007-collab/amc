@@ -54,9 +54,6 @@ const buildPrintUrl = (printUrl, { download = false } = {}) => {
 
 /* =========================================================
    Visibility helpers
-   - custom_unit  → could be: null | "" | 0 | "0" | "4" | 4
-                    Only treat as "has units" when > 0
-   - custom_visit → number 0 or 1 (or "0"/"1" strings)
    ========================================================= */
 const hasUnitControl = (it) => {
   const v = it.custom_unit;
@@ -76,13 +73,6 @@ const hasVisitControl = (it) => {
 
 const hasQtyControls = (it) => hasUnitControl(it) || hasVisitControl(it);
 
-/* =========================================================
-   Per-unit line math
-   - If custom_unit threshold exists AND units <= threshold
-       → charge custom_min_amount (flat minimum)
-   - Else → charge rate × units
-   - Visits multiply the result (separate service visits)
-   ========================================================= */
 const computeItemAmount = (it) => {
   const rate = Number(it.rate) || 0;
   if (rate <= 0) return 0;
@@ -117,16 +107,6 @@ const lineTotal = (it) => {
   });
 
   return { total, hasPayable };
-};
-
-const lineCounts = (it) => {
-  let visits = hasVisitControl(it) ? Number(it.visits) || 1 : 0;
-  let units = hasUnitControl(it) ? Number(it.units) || 1 : 0;
-  (it.subItems || []).forEach((s) => {
-    visits += hasVisitControl(s) ? Number(s.visits) || 1 : 0;
-    units += hasUnitControl(s) ? Number(s.units) || 1 : 0;
-  });
-  return { visits, units };
 };
 
 /* =========================================================
@@ -210,6 +190,325 @@ const showQuoteSuccessAlert = async (quote) => {
   }
 };
 
+/* =========================================================
+   Shared catalog body
+   ========================================================= */
+function CatalogBody({
+  styles,
+  search,
+  setSearch,
+  catalogTypes,
+  activeTypes,
+  setActiveTypes,
+  catalogLoading,
+  catalogError,
+  filteredCatalog,
+  onAdd,
+  onRemove,
+  isAdded,
+  retry,
+  addLabel,
+  selectedLines = [],
+  onClearAll,
+}) {
+  const [dropdownOpen, setDropdownOpen] = React.useState(false);
+  const dropdownRef = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!dropdownOpen) return;
+    const onClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [dropdownOpen]);
+
+  const isAll = activeTypes.length === 0;
+
+  const toggleType = (key) => {
+    setActiveTypes((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const selectedTotal = selectedLines.reduce(
+    (sum, line) => sum + lineTotal(line).total,
+    0
+  );
+  const hasSelectedTotal = selectedLines.some(
+    (line) => lineTotal(line).hasPayable
+  );
+
+  return (
+    <>
+      {/* ── Filter bar: dropdown + search ── */}
+      <div className={styles.catalogFilters}>
+        {catalogTypes.length > 1 && (
+          <div className={styles.catalogDropdown} ref={dropdownRef}>
+            <button
+              type="button"
+              className={styles.catalogDropdown__trigger}
+              onClick={() => setDropdownOpen((v) => !v)}
+              aria-expanded={dropdownOpen}
+            >
+              <span>
+                {isAll
+                  ? "All types"
+                  : activeTypes.length === 1
+                    ? activeTypes[0]
+                    : `${activeTypes.length} types selected`}
+              </span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2.5 4.5 6 8l3.5-3.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {dropdownOpen && (
+              <div className={styles.catalogDropdown__menu}>
+                <label className={styles.catalogDropdown__item}>
+                  <input
+                    type="checkbox"
+                    checked={isAll}
+                    onChange={() => setActiveTypes([])}
+                  />
+                  <span>All types</span>
+                  <em>{catalogTypes[0]?.count ?? 0}</em>
+                </label>
+
+                {catalogTypes.slice(1).map((t) => (
+                  <label key={t.key} className={styles.catalogDropdown__item}>
+                    <input
+                      type="checkbox"
+                      checked={activeTypes.includes(t.key)}
+                      onChange={() => toggleType(t.key)}
+                    />
+                    <span>{t.label}</span>
+                    <em>{t.count}</em>
+                  </label>
+                ))}
+
+                {!isAll && (
+                  <button
+                    type="button"
+                    className={styles.catalogDropdown__clear}
+                    onClick={() => setActiveTypes([])}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className={styles.catalogSearch}>
+          <span className={styles.catalogSearch__icon}>⌕</span>
+          <input
+            type="text"
+            placeholder="Search by name or code…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              type="button"
+              className={styles.catalogSearch__clear}
+              onClick={() => setSearch("")}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Active filter chips (multi-select, removable) ── */}
+      {activeTypes.length > 0 && (
+        <div className={styles.catalogChips}>
+          {activeTypes.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={`${styles.catalogChip} ${styles["catalogChip--active"]}`}
+              onClick={() => toggleType(key)}
+            >
+              {key}
+              <span>×</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Selected items summary ── */}
+      {selectedLines.length > 0 && (
+        <div className={styles.catalogSelected}>
+          <div className={styles.catalogSelected__head}>
+            <strong>Selected ({selectedLines.length})</strong>
+            <div className={styles.catalogSelected__headRight}>
+              {hasSelectedTotal && (
+                <span className={styles.catalogSelected__total}>
+                  {inr(selectedTotal)}
+                </span>
+              )}
+              {onClearAll && (
+                <button type="button" onClick={onClearAll}>
+                  Clear all
+                </button>
+              )}
+            </div>
+          </div>
+          <ul className={styles.catalogSelected__list}>
+            {selectedLines.map((line) => {
+              const { total, hasPayable } = lineTotal(line);
+              const subCount = (line.subItems || []).length;
+              const qtyLabel = hasUnitControl(line)
+                ? line.units || 1
+                : line.qty || 1;
+
+              return (
+                <li key={line.item_code}>
+                  <div className={styles.catalogSelected__info}>
+                    <strong title={line.item_name || line.item_code}>
+                      {line.item_name || line.item_code}
+                    </strong>
+                    <span>
+                      {line.item_code} · Qty {qtyLabel}
+                      {subCount > 0 &&
+                        ` · ${subCount} add-on${subCount > 1 ? "s" : ""}`}
+                    </span>
+                  </div>
+                  <div className={styles.catalogSelected__price}>
+                    <span>
+                      {hasPayable ? inr(total, line.currency) : "On request"}
+                    </span>
+                    {onRemove && (
+                      <button
+                        type="button"
+                        onClick={() => onRemove(line)}
+                        aria-label={`Remove ${
+                          line.item_name || line.item_code
+                        }`}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* ── List ── */}
+      <div className={styles.catalogList}>
+        {catalogLoading && (
+          <div className={styles.catalogState}>
+            <div className={styles.catalogSpinner} />
+            <p>Loading items…</p>
+          </div>
+        )}
+
+        {catalogError && !catalogLoading && (
+          <div className={styles.catalogState}>
+            <p>{catalogError}</p>
+            <button
+              type="button"
+              className={styles.catalogRetry}
+              onClick={retry}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!catalogLoading &&
+          !catalogError &&
+          filteredCatalog.length === 0 && (
+            <div className={styles.catalogState}>
+              <p>No items match your search.</p>
+            </div>
+          )}
+
+        {!catalogLoading &&
+          !catalogError &&
+          filteredCatalog.map((it) => {
+            const added = isAdded(it.item_code);
+            const displayName = it.item_name || it.item_code;
+            return (
+              <div
+                key={it.item_code}
+                className={`${styles.catalogItem} ${
+                  added ? styles["catalogItem--inCart"] : ""
+                }`}
+              >
+                <div className={styles.catalogItem__thumb}>
+                  {displayName.slice(0, 2).toUpperCase()}
+                </div>
+                <div className={styles.catalogItem__info}>
+                  <span className={styles.catalogItem__tag}>
+                    {it.amc_sub_type_name || it.amc_type_name || "AMC"}
+                  </span>
+                  <strong title={displayName}>{displayName}</strong>
+                  <span className={styles.catalogItem__meta}>
+                    {it.item_code} · {it.uom || "Nos"}
+                  </span>
+                </div>
+                <div className={styles.catalogItem__price}>
+                  {it.rate && it.rate > 0 ? (
+                    inr(it.rate, it.currency)
+                  ) : (
+                    <span className={styles.catalogItem__onRequest}>
+                      On request
+                    </span>
+                  )}
+                </div>
+                {added && onRemove ? (
+                  <button
+                    type="button"
+                    className={`${styles.catalogItem__add} ${styles["catalogItem__add--remove"]}`}
+                    onClick={() => onRemove(it)}
+                  >
+                    Remove
+                    <span>×</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className={`${styles.catalogItem__add} ${
+                      added ? styles["catalogItem__add--added"] : ""
+                    }`}
+                    onClick={() => onAdd(it)}
+                  >
+                    {addLabel(added)}
+                    <span>+</span>
+                  </button>
+                )}
+              </div>
+            );
+          })}
+      </div>
+    </>
+  );
+}
+
+/* =========================================================
+   Page
+   ========================================================= */
 export default function QuoteCartPage() {
   const [cart, setCart] = useState([]);
   const [mounted, setMounted] = useState(false);
@@ -243,7 +542,7 @@ export default function QuoteCartPage() {
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const [search, setSearch] = useState("");
-  const [activeType, setActiveType] = useState("all");
+  const [activeTypes, setActiveTypes] = useState([]);
 
   /* ---------------------------------------------------------
      Mount — migrate legacy qty → visits/units
@@ -447,6 +746,11 @@ export default function QuoteCartPage() {
       units: 1,
     });
     setCart(getCart());
+    // refresh parent snapshot so selected list updates
+    const refreshed = getCart().find(
+      (c) => c.item_code === lineAddParent.item_code
+    );
+    if (refreshed) setLineAddParent(refreshed);
     setToast(`Added to "${lineAddParent.item_name || lineAddParent.item_code}"`);
     setTimeout(() => setToast(""), 1800);
   };
@@ -454,6 +758,9 @@ export default function QuoteCartPage() {
   const handleSubRemove = (parentCode, subCode) => {
     removeSubItem(parentCode, subCode);
     setCart(getCart());
+    // refresh parent snapshot so selected list updates
+    const refreshed = getCart().find((c) => c.item_code === parentCode);
+    if (refreshed) setLineAddParent(refreshed);
     setToast("Sub-item removed");
     setTimeout(() => setToast(""), 1800);
   };
@@ -553,66 +860,62 @@ export default function QuoteCartPage() {
   const handleChange = (e) =>
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
 
-const buildQuoteItems = (lines, propertyType = "Commercial") => {
-  const out = [];
+  const buildQuoteItems = (lines, propertyType = "Commercial") => {
+    const out = [];
 
-  const allowedCategories = [
-    "Residential",
-    "Commercial",
-    "Industrial",
-    "Other",
-  ];
-  const safeCategory = allowedCategories.includes(propertyType)
-    ? propertyType
-    : "Commercial";
+    const allowedCategories = [
+      "Residential",
+      "Commercial",
+      "Industrial",
+      "Other",
+    ];
+    const safeCategory = allowedCategories.includes(propertyType)
+      ? propertyType
+      : "Commercial";
 
-  lines.forEach((parent) => {
-    const pushItem = (it) => {
-      const showVisit = hasVisitControl(it);
-      const showUnit = hasUnitControl(it);
+    lines.forEach((parent) => {
+      const pushItem = (it) => {
+        const showVisit = hasVisitControl(it);
+        const showUnit = hasUnitControl(it);
 
-      const visits = showVisit ? Number(it.visits) || 1 : 1;
-      const units = showUnit ? Number(it.units) || 1 : 1;
+        const visits = showVisit ? Number(it.visits) || 1 : 1;
+        const units = showUnit ? Number(it.units) || 1 : 1;
 
-      // qty = what backend multiplies `rate` by
-      const qty =  units;
-      const custom_visit = visits
-      // line subtotal — same value shown on that cart line
-      const lineSubtotal = computeItemAmount(it) * visits;
+        const qty = units;
+        const custom_visit = visits;
 
-      const item = {
-        item_code: it.item_code,
-        category: safeCategory,
-        service: "AMC Charges",
+        const item = {
+          item_code: it.item_code,
+          category: safeCategory,
+          service: "AMC Charges",
 
-        amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
-        amc_type: it.amc_type_name || it.amc_type || "",
+          amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
+          amc_type: it.amc_type_name || it.amc_type || "",
 
-        amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
-        amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
+          amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
+          amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
 
-        qty,
-        custom_visit,
+          qty,
+          custom_visit,
 
-        rate: Number(it.rate) || 0,        // per-unit rate
-        // final_rate: lineSubtotal,          // 👈 this line's subtotal
+          rate: Number(it.rate) || 0,
 
-        stock_uom: it.stock_uom || it.uom || "Nos",
+          stock_uom: it.stock_uom || it.uom || "Nos",
+        };
+
+        if (it.gst_hsn_code) {
+          item.gst_hsn_code = it.gst_hsn_code;
+        }
+
+        out.push(item);
       };
 
-      if (it.gst_hsn_code) {
-        item.gst_hsn_code = it.gst_hsn_code;
-      }
+      pushItem(parent);
+      (parent.subItems || []).forEach(pushItem);
+    });
 
-      out.push(item);
-    };
-
-    pushItem(parent);
-    (parent.subItems || []).forEach(pushItem);
-  });
-
-  return out;
-};
+    return out;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -767,7 +1070,8 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
     const q = search.trim().toLowerCase();
     return catalog.filter((it) => {
       const typeKey = (it.amc_type_name || it.amc_type || "Other").trim();
-      if (activeType !== "all" && typeKey !== activeType) return false;
+      if (activeTypes.length > 0 && !activeTypes.includes(typeKey))
+        return false;
       if (!q) return true;
       return (
         (it.item_name || "").toLowerCase().includes(q) ||
@@ -775,7 +1079,7 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
         (it.amc_sub_type_name || "").toLowerCase().includes(q)
       );
     });
-  }, [catalog, search, activeType]);
+  }, [catalog, search, activeTypes]);
 
   const inCart = (item_code) => cart.some((c) => c.item_code === item_code);
 
@@ -1185,7 +1489,6 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
                             </p>
                           </div>
 
-                          {/* 👇 VISITS + UNITS — only show what applies */}
                           {hasQtyControls(it) && (
                             <div className={styles.cartItem__counts}>
                               {showVisit && (
@@ -1346,7 +1649,6 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
                                     </span>
                                   </div>
 
-                                  {/* 👇 Sub VISITS + UNITS — only show what applies */}
                                   {hasQtyControls(s) && (
                                     <div className={styles.subItem__counts}>
                                       {sShowVisit && (
@@ -1723,15 +2025,18 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
                 search={search}
                 setSearch={setSearch}
                 catalogTypes={catalogTypes}
-                activeType={activeType}
-                setActiveType={setActiveType}
+                activeTypes={activeTypes}
+                setActiveTypes={setActiveTypes}
                 catalogLoading={catalogLoading}
                 catalogError={catalogError}
                 filteredCatalog={filteredCatalog}
                 onAdd={handleAddFromCatalog}
+                onRemove={(it) => handleRemove(it.item_code)}
                 isAdded={(code) => inCart(code)}
                 retry={() => setCatalog([])}
                 addLabel={(added) => (added ? "Add again" : "Add")}
+                selectedLines={cart}
+                onClearAll={handleClear}
               />
 
               <div className={styles.cartModal__actions}>
@@ -1836,17 +2141,21 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
                 search={search}
                 setSearch={setSearch}
                 catalogTypes={catalogTypes}
-                activeType={activeType}
-                setActiveType={setActiveType}
+                activeTypes={activeTypes}
+                setActiveTypes={setActiveTypes}
                 catalogLoading={catalogLoading}
                 catalogError={catalogError}
                 filteredCatalog={filteredCatalog}
                 onAdd={handleAddSubItem}
+                onRemove={(it) =>
+                  handleSubRemove(lineAddParent.item_code, it.item_code)
+                }
                 isAdded={(code) =>
                   isSubInParent(lineAddParent.item_code, code)
                 }
                 retry={() => setCatalog([])}
                 addLabel={(added) => (added ? "Add again" : "Add")}
+                selectedLines={lineAddParent.subItems || []}
               />
 
               <div className={styles.cartModal__actions}>
@@ -2095,21 +2404,20 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
                         value={form.duration}
                         onChange={handleChange}
                       >
-                        {/* <option value="1 Month">1 Months</option> */}
                         <option value="3 Months">3 Months</option>
                         <option value="6 Months">6 Months</option>
                         <option value="12 Months">12 Months</option>
                       </select>
                     </label>
                     <label>
-                      <span>Price List</span>
+                      {/* <span>Price List</span>
                       <input
                         type="text"
                         name="price_list"
                         value={form.price_list}
                         onChange={handleChange}
                         placeholder="Standard Selling"
-                      />
+                      /> */}
                     </label>
                     <label className={styles.cartModal__full}>
                       <span>Remarks (optional)</span>
@@ -2166,144 +2474,6 @@ const buildQuoteItems = (lines, propertyType = "Commercial") => {
 
         {toast && <div className={styles.cartToast}>{toast}</div>}
       </main>
-    </>
-  );
-}
-
-/* =========================================================
-   Shared catalog body
-   ========================================================= */
-function CatalogBody({
-  styles,
-  search,
-  setSearch,
-  catalogTypes,
-  activeType,
-  setActiveType,
-  catalogLoading,
-  catalogError,
-  filteredCatalog,
-  onAdd,
-  isAdded,
-  retry,
-  addLabel,
-}) {
-  return (
-    <>
-      <div className={styles.catalogSearch}>
-        <span className={styles.catalogSearch__icon}>⌕</span>
-        <input
-          type="text"
-          placeholder="Search by name or code…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        {search && (
-          <button
-            type="button"
-            className={styles.catalogSearch__clear}
-            onClick={() => setSearch("")}
-            aria-label="Clear search"
-          >
-            ×
-          </button>
-        )}
-      </div>
-
-      {catalogTypes.length > 1 && (
-        <div className={styles.catalogChips}>
-          {catalogTypes.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              className={`${styles.catalogChip} ${
-                activeType === t.key ? styles["catalogChip--active"] : ""
-              }`}
-              onClick={() => setActiveType(t.key)}
-            >
-              {t.label}
-              <span>{t.count}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      <div className={styles.catalogList}>
-        {catalogLoading && (
-          <div className={styles.catalogState}>
-            <div className={styles.catalogSpinner} />
-            <p>Loading items…</p>
-          </div>
-        )}
-
-        {catalogError && !catalogLoading && (
-          <div className={styles.catalogState}>
-            <p>{catalogError}</p>
-            <button
-              type="button"
-              className={styles.catalogRetry}
-              onClick={retry}
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {!catalogLoading &&
-          !catalogError &&
-          filteredCatalog.length === 0 && (
-            <div className={styles.catalogState}>
-              <p>No items match your search.</p>
-            </div>
-          )}
-
-        {!catalogLoading &&
-          !catalogError &&
-          filteredCatalog.map((it) => {
-            const added = isAdded(it.item_code);
-            const displayName = it.item_name || it.item_code;
-            return (
-              <div
-                key={it.item_code}
-                className={`${styles.catalogItem} ${
-                  added ? styles["catalogItem--inCart"] : ""
-                }`}
-              >
-                <div className={styles.catalogItem__thumb}>
-                  {displayName.slice(0, 2).toUpperCase()}
-                </div>
-                <div className={styles.catalogItem__info}>
-                  <span className={styles.catalogItem__tag}>
-                    {it.amc_sub_type_name || it.amc_type_name || "AMC"}
-                  </span>
-                  <strong title={displayName}>{displayName}</strong>
-                  <span className={styles.catalogItem__meta}>
-                    {it.item_code} · {it.uom || "Nos"}
-                  </span>
-                </div>
-                <div className={styles.catalogItem__price}>
-                  {it.rate && it.rate > 0 ? (
-                    inr(it.rate, it.currency)
-                  ) : (
-                    <span className={styles.catalogItem__onRequest}>
-                      On request
-                    </span>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  className={`${styles.catalogItem__add} ${
-                    added ? styles["catalogItem__add--added"] : ""
-                  }`}
-                  onClick={() => onAdd(it)}
-                >
-                  {addLabel(added)}
-                  <span>+</span>
-                </button>
-              </div>
-            );
-          })}
-      </div>
     </>
   );
 }

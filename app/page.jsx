@@ -14,7 +14,7 @@ import {
   appendToCartItem,
   setSubItemQty,
   removeSubItem,
-  removeFromCart, // 👈 make sure this is exported from @/lib/cart
+  removeFromCart,
 } from "@/lib/cart";
 
 const process = [
@@ -79,7 +79,6 @@ const inr = (n, currency = "INR") =>
     maximumFractionDigits: 2,
   })}`;
 
-// compute a cart line's subtotal = parent + all sub-items
 const lineTotal = (it) => {
   if (!it) return { total: 0, hasPayable: false };
   let total = 0;
@@ -105,8 +104,8 @@ function CatalogBody({
   search,
   setSearch,
   catalogTypes,
-  activeType,
-  setActiveType,
+  activeTypes,
+  setActiveTypes,
   catalogLoading,
   catalogError,
   filteredCatalog,
@@ -115,27 +114,175 @@ function CatalogBody({
   isAdded,
   retry,
   addLabel,
+  selectedLines = [],
+  onClearAll,
 }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = React.useRef(null);
+
+  // close dropdown on outside click
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const onClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [dropdownOpen]);
+
+  const isAll = activeTypes.length === 0;
+
+  const toggleType = (key) => {
+    setActiveTypes((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const selectedTotal = selectedLines.reduce(
+    (sum, line) => sum + lineTotal(line).total,
+    0
+  );
+  const hasSelectedTotal = selectedLines.some(
+    (line) => lineTotal(line).hasPayable
+  );
+
   return (
     <>
-      {catalogTypes.length > 1 && (
-        <div className={styles.catalogChips}>
-          {catalogTypes.map((t) => (
+      {/* ── Filter bar: dropdown + search ── */}
+      <div className={styles.catalogFilters}>
+        {catalogTypes.length > 1 && (
+          <div className={styles.catalogDropdown} ref={dropdownRef}>
             <button
-              key={t.key}
               type="button"
-              className={`${styles.catalogChip} ${
-                activeType === t.key ? styles["catalogChip--active"] : ""
-              }`}
-              onClick={() => setActiveType(t.key)}
+              className={styles.catalogDropdown__trigger}
+              onClick={() => setDropdownOpen((v) => !v)}
+              aria-expanded={dropdownOpen}
             >
-              {t.label}
-              <span>{t.count}</span>
+              <span>
+                {isAll
+                  ? "All types"
+                  : activeTypes.length === 1
+                    ? activeTypes[0]
+                    : `${activeTypes.length} types selected`}
+              </span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2.5 4.5 6 8l3.5-3.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {dropdownOpen && (
+              <div className={styles.catalogDropdown__menu}>
+                <label className={styles.catalogDropdown__item}>
+                  <input
+                    type="checkbox"
+                    checked={isAll}
+                    onChange={() => setActiveTypes([])}
+                  />
+                  <span>All types</span>
+                  <em>{catalogTypes[0]?.count ?? 0}</em>
+                </label>
+
+                {catalogTypes.slice(1).map((t) => (
+                  <label key={t.key} className={styles.catalogDropdown__item}>
+                    <input
+                      type="checkbox"
+                      checked={activeTypes.includes(t.key)}
+                      onChange={() => toggleType(t.key)}
+                    />
+                    <span>{t.label}</span>
+                    <em>{t.count}</em>
+                  </label>
+                ))}
+
+                {!isAll && (
+                  <button
+                    type="button"
+                    className={styles.catalogDropdown__clear}
+                    onClick={() => setActiveTypes([])}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <input
+          type="search"
+          className={styles.catalogSearch}
+          placeholder="Search items…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* ── Active filter chips (multi-select, removable) ── */}
+      {activeTypes.length > 0 && (
+        <div className={styles.catalogChips}>
+          {activeTypes.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={`${styles.catalogChip} ${styles["catalogChip--active"]}`}
+              onClick={() => toggleType(key)}
+            >
+              {key}
+              <span>×</span>
             </button>
           ))}
         </div>
       )}
 
+      {/* ── Selected items summary ── */}
+      {selectedLines.length > 0 && (
+        <div className={styles.catalogSelected}>
+          <div className={styles.catalogSelected__head}>
+            <strong>Selected ({selectedLines.length})</strong>
+            <div className={styles.catalogSelected__headRight}>
+            
+              {onClearAll && (
+                <button type="button" onClick={onClearAll}>
+                  Clear all
+                </button>
+              )}
+            </div>
+          </div>
+          <ul className={styles.catalogSelected__list}>
+            {selectedLines.map((line) => {
+              const { total, hasPayable } = lineTotal(line);
+              const subCount = (line.subItems || []).length;
+              return (
+                <li key={line.item_code}>
+                  <div className={styles.catalogSelected__info}>
+                    <strong title={line.item_name || line.item_code}>
+                      {line.item_name || line.item_code}
+                    </strong>
+                   
+                  </div>
+                 
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* ── List ── */}
       <div className={styles.catalogList}>
         {catalogLoading && (
           <div className={styles.catalogState}>
@@ -187,15 +334,7 @@ function CatalogBody({
                     {it.item_code} · {it.uom || "Nos"}
                   </span>
                 </div>
-                <div className={styles.catalogItem__price}>
-                  {it.rate && it.rate > 0 ? (
-                    inr(it.rate, it.currency)
-                  ) : (
-                    <span className={styles.catalogItem__onRequest}>
-                      On request
-                    </span>
-                  )}
-                </div>
+               
 
                 {added ? (
                   <button
@@ -234,27 +373,22 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // cart (persisted)
   const [cart, setCart] = useState([]);
   const [mounted, setMounted] = useState(false);
 
-  // global "Add Items" modal
   const [addOpen, setAddOpen] = useState(false);
 
-  // line-add modal
   const [lineAddOpen, setLineAddOpen] = useState(false);
   const [lineAddParent, setLineAddParent] = useState(null);
 
-  // catalog state
   const [search, setSearch] = useState("");
   const [catalog, setCatalog] = useState([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
-  const [activeType, setActiveType] = useState("all");
+  const [activeTypes, setActiveTypes] = useState([]); // [] = all
 
   const [toast, setToast] = useState("");
 
-  /* -------- auth-guarded open of the global add modal -------- */
   const handleOpenAddModal = useCallback(() => {
     if (!isUserLoggedIn()) {
       const redirectTo = encodeURIComponent(
@@ -266,7 +400,6 @@ export default function Page() {
     setAddOpen(true);
   }, [router]);
 
-  /* -------- hydrate cart -------- */
   useEffect(() => {
     setMounted(true);
     setCart(getCart());
@@ -275,7 +408,6 @@ export default function Page() {
     return () => window.removeEventListener("amc-cart-updated", handler);
   }, []);
 
-  /* -------- fetch AMC types for the services section -------- */
   useEffect(() => {
     const fetchAmcTypes = async () => {
       try {
@@ -347,7 +479,6 @@ export default function Page() {
     fetchAmcTypes();
   }, []);
 
-  /* -------- lock body scroll while a modal is open -------- */
   useEffect(() => {
     if (!addOpen && !lineAddOpen) return;
     const original = document.body.style.overflow;
@@ -357,7 +488,6 @@ export default function Page() {
     };
   }, [addOpen, lineAddOpen]);
 
-  /* -------- esc closes modal -------- */
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
@@ -368,7 +498,6 @@ export default function Page() {
     return () => window.removeEventListener("keydown", onKey);
   }, [addOpen, lineAddOpen]);
 
-  /* -------- fetch catalog when any modal opens -------- */
   const shouldFetch = (addOpen || lineAddOpen) && catalog.length === 0;
 
   useEffect(() => {
@@ -396,7 +525,6 @@ export default function Page() {
     };
   }, [shouldFetch]);
 
-  /* -------- derived catalog -------- */
   const catalogTypes = useMemo(() => {
     const map = new Map();
     catalog.forEach((it) => {
@@ -417,7 +545,7 @@ export default function Page() {
     const q = search.trim().toLowerCase();
     return catalog.filter((it) => {
       const typeKey = (it.amc_type_name || it.amc_type || "Other").trim();
-      if (activeType !== "all" && typeKey !== activeType) return false;
+      if (activeTypes.length > 0 && !activeTypes.includes(typeKey)) return false;
       if (!q) return true;
       return (
         (it.item_name || "").toLowerCase().includes(q) ||
@@ -425,16 +553,14 @@ export default function Page() {
         (it.amc_sub_type_name || "").toLowerCase().includes(q)
       );
     });
-  }, [catalog, search, activeType]);
+  }, [catalog, search, activeTypes]);
 
-  /* -------- total items in cart (parents + sub-items) -------- */
   const cartCount = useMemo(() => {
     return cart.reduce((sum, line) => {
       return sum + 1 + (line.subItems?.length || 0);
     }, 0);
   }, [cart]);
 
-  /* -------- helpers -------- */
   const inCart = useCallback(
     (item_code) => cart.some((c) => c.item_code === item_code),
     [cart]
@@ -461,13 +587,26 @@ export default function Page() {
     if (typeof removeFromCart === "function") {
       removeFromCart(item.item_code);
     } else {
-      // fallback if removeFromCart isn't exported from lib/cart
       const next = getCart().filter((c) => c.item_code !== item.item_code);
       localStorage.setItem("amc-cart", JSON.stringify(next));
       window.dispatchEvent(new Event("amc-cart-updated"));
     }
     setCart(getCart());
     flashToast(`Removed: ${item.item_name || item.item_code}`);
+  };
+
+  const handleClearAllCart = () => {
+    const current = getCart();
+    current.forEach((line) => {
+      if (typeof removeFromCart === "function") {
+        removeFromCart(line.item_code);
+      }
+    });
+    // fallback in case removeFromCart didn't clear everything
+    localStorage.setItem("amc-cart", JSON.stringify([]));
+    window.dispatchEvent(new Event("amc-cart-updated"));
+    setCart(getCart());
+    flashToast("Cart cleared");
   };
 
   const handleAddSubItem = (item) => {
@@ -497,7 +636,6 @@ export default function Page() {
     setCatalogError("");
   }, []);
 
-  /* -------- parent subtotal for the line-add modal -------- */
   const lineAddParentTotal = lineAddParent
     ? lineTotal(lineAddParent).total
     : 0;
@@ -835,16 +973,18 @@ export default function Page() {
                 search={search}
                 setSearch={setSearch}
                 catalogTypes={catalogTypes}
-                activeType={activeType}
-                setActiveType={setActiveType}
+                activeTypes={activeTypes}
+                setActiveTypes={setActiveTypes}
                 catalogLoading={catalogLoading}
                 catalogError={catalogError}
                 filteredCatalog={filteredCatalog}
                 onAdd={handleAddFromCatalog}
                 onRemove={handleRemoveFromCatalog}
-                isAdded={(code) => inCart(code)}
+                isAdded={inCart}
                 retry={retryCatalog}
                 addLabel={(added) => (added ? "Add again" : "Add To Cart")}
+                selectedLines={cart}
+                onClearAll={handleClearAllCart}
               />
 
               <div className={styles.cartModal__actions}>
@@ -900,7 +1040,6 @@ export default function Page() {
                 </p>
               </div>
 
-              {/* parent summary with running subtotal */}
               <div className={styles.lineAddParent}>
                 <div className={styles.lineAddParent__thumb}>
                   {(lineAddParent.item_name || lineAddParent.item_code)
@@ -935,8 +1074,8 @@ export default function Page() {
                 search={search}
                 setSearch={setSearch}
                 catalogTypes={catalogTypes}
-                activeType={activeType}
-                setActiveType={setActiveType}
+                activeTypes={activeTypes}
+                setActiveTypes={setActiveTypes}
                 catalogLoading={catalogLoading}
                 catalogError={catalogError}
                 filteredCatalog={filteredCatalog}
@@ -947,6 +1086,7 @@ export default function Page() {
                 }
                 retry={retryCatalog}
                 addLabel={(added) => (added ? "Add again" : "Add")}
+                selectedLines={lineAddParent.subItems || []}
               />
 
               <div className={styles.cartModal__actions}>
@@ -962,7 +1102,7 @@ export default function Page() {
           </div>
         )}
 
-        {/* ── FLOATING CART FAB (count badge) ── */}
+        {/* ── FLOATING CART FAB ── */}
         {cartCount > 0 && (
           <Link
             href="/quote-cart"

@@ -2915,3 +2915,419 @@
   gap: 0.5rem !important;
   margin-top: 1.5rem !important;
 }
+
+/* =========================================================
+   FILTER BAR — dropdown + search
+   ========================================================= */
+.catalogFilters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 24px 16px;
+}
+
+.catalogDropdown {
+  position: relative;
+  flex-shrink: 0;
+
+  &__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 10px 16px;
+
+    background: #fff;
+    border: 1px solid #e6e1d6;
+    border-radius: 100px;
+
+    font-size: 12px;
+    font-weight: 600;
+    color: #0e1116;
+    cursor: pointer;
+    white-space: nowrap;
+
+    transition: border-color 0.25s ease, box-shadow 0.25s ease;
+
+    &:hover {
+      border-color: #0e1116;
+    }
+
+    &[aria-expanded="true"] {
+      border-color: #e8913a;
+      box-shadow: 0 0 0 3px rgba(232, 145, 58, 0.15);
+    }
+
+    svg {
+      transition: transform 0.25s ease;
+    }
+
+    &[aria-expanded="true"] svg {
+      transform: rotate(180deg);
+    }
+  }
+
+  &__menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 0;
+    z-index: 50;
+
+    min-width: 240px;
+    max-height: 300px;
+    overflow-y: auto;
+
+    padding: 8px;
+
+    background: #fff;
+    border: 1px solid #e6e1d6;
+    border-radius: 14px;
+
+    box-shadow: 0 24px 48px -16px rgba(15, 17, 22, 0.25);
+
+    animation: dropdownIn 0.18s ease-out;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    padding: 9px 10px;
+    border-radius: 8px;
+
+    font-size: 13px;
+    color: #0e1116;
+    cursor: pointer;
+
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: #f6f4ef;
+    }
+
+    input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      accent-color: #e8913a;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    span {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    em {
+      font-style: normal;
+      font-size: 11px;
+      color: #6b7280;
+      flex-shrink: 0;
+    }
+  }
+
+  &__clear {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 10px 8px 6px;
+
+    background: none;
+    border: none;
+    border-top: 1px solid #ece7dc;
+
+    color: #a8531a;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover {
+      color: #e8913a;
+    }
+  }
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.catalogSearch {
+  flex: 1;
+  min-width: 0;
+
+  padding: 10px 16px;
+
+  background: #fff;
+  border: 1px solid #e6e1d6;
+  border-radius: 100px;
+
+  font-size: 13px;
+  color: #0e1116;
+  outline: none;
+
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  &:focus {
+    border-color: #e8913a;
+    box-shadow: 0 0 0 3px rgba(232, 145, 58, 0.15);
+  }
+}
+
+/* =========================================================
+   ACTIVE FILTER CHIPS (multi-select, removable)
+   ========================================================= */
+.catalogChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 24px 12px;
+}
+
+.catalogChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 6px 12px;
+
+  background: #fff;
+  border: 1px solid #e6e1d6;
+  border-radius: 100px;
+
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #0e1116;
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+
+  span {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(15, 17, 22, 0.08);
+    font-size: 11px;
+    line-height: 1;
+  }
+
+  &:hover {
+    border-color: #0e1116;
+  }
+
+  &--active {
+    background: #e8913a;
+    border-color: #e8913a;
+    color: #0e1116;
+
+    span {
+      background: rgba(15, 17, 22, 0.15);
+    }
+
+    &:hover {
+      background: #d97a1f;
+      border-color: #d97a1f;
+    }
+  }
+}
+
+/* =========================================================
+   SELECTED ITEMS SUMMARY STRIP
+   ========================================================= */
+.catalogSelected {
+  margin: 0 24px 16px;
+  padding: 14px 16px;
+
+  background: #fdf3e6;
+  border: 1px solid rgba(232, 145, 58, 0.28);
+  border-radius: 14px;
+
+  &__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+
+    strong {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #a8531a;
+    }
+  }
+
+  &__headRight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    button {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #a8531a;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      text-decoration: underline;
+
+      &:hover {
+        color: #e8913a;
+      }
+    }
+  }
+
+  &__total {
+    font-size: 12px;
+    font-weight: 800;
+    color: #0e1116;
+    white-space: nowrap;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    li {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+
+      padding: 9px 12px;
+
+      background: #fff;
+      border-radius: 10px;
+    }
+  }
+
+  &__info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+
+    strong {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0e1116;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    span {
+      font-size: 11px;
+      color: #6b7280;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  &__price {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+
+    span {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0e1116;
+      white-space: nowrap;
+    }
+
+    button {
+      display: inline-grid;
+      place-items: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+
+      background: #fdf3e6;
+      border: none;
+      border-radius: 50%;
+
+      color: #a8531a;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+
+      transition: all 0.2s ease;
+
+      &:hover {
+        background: #e8913a;
+        color: #fff;
+      }
+    }
+  }
+}
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 640px) {
+  .catalogFilters {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4px 16px 12px;
+  }
+
+  .catalogDropdown__trigger {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .catalogDropdown__menu {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .catalogChips {
+    padding: 0 16px 10px;
+  }
+
+  .catalogSelected {
+    margin: 0 16px 12px;
+    padding: 12px;
+
+    &__list li {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    &__price {
+      width: 100%;
+      justify-content: space-between;
+    }
+  }
+}
