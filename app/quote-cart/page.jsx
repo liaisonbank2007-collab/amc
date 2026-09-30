@@ -2380,7 +2380,7 @@ export default function QuoteCartPage() {
 
                 <div className={styles.formSection}>
                   <span className={styles.formSection__label}>
-                    Site details
+                    Billing details
                   </span>
                   <div className={styles.cartModal__grid}>
                     <label className={styles.cartModal__full}>
