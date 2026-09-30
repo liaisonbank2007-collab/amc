@@ -26,6 +26,9 @@ const inr = (n, currency = "INR") =>
     maximumFractionDigits: 2,
   })}`;
 
+// Normalise "Ants,Cockroaches,X" → "Ants, Cockroaches, X"
+const prettyName = (name) => (name || "").replace(/,(?!\s)/g, ", ");
+
 const buildPrintUrl = (printUrl, { download = false } = {}) => {
   if (!printUrl) return null;
 
@@ -243,7 +246,6 @@ function CatalogBody({
 
   return (
     <>
-      {/* ── Filter bar: dropdown + search ── */}
       <div className={styles.catalogFilters}>
         {catalogTypes.length > 1 && (
           <div className={styles.catalogDropdown} ref={dropdownRef}>
@@ -336,7 +338,6 @@ function CatalogBody({
         </div>
       </div>
 
-      {/* ── Active filter chips (multi-select, removable) ── */}
       {activeTypes.length > 0 && (
         <div className={styles.catalogChips}>
           {activeTypes.map((key) => (
@@ -353,7 +354,6 @@ function CatalogBody({
         </div>
       )}
 
-      {/* ── Selected items summary ── */}
       {selectedLines.length > 0 && (
         <div className={styles.catalogSelected}>
           <div className={styles.catalogSelected__head}>
@@ -383,7 +383,7 @@ function CatalogBody({
                 <li key={line.item_code}>
                   <div className={styles.catalogSelected__info}>
                     <strong title={line.item_name || line.item_code}>
-                      {line.item_name || line.item_code}
+                      {prettyName(line.item_name || line.item_code)}
                     </strong>
                     <span>
                       {line.item_code} · Qty {qtyLabel}
@@ -414,7 +414,6 @@ function CatalogBody({
         </div>
       )}
 
-      {/* ── List ── */}
       <div className={styles.catalogList}>
         {catalogLoading && (
           <div className={styles.catalogState}>
@@ -463,7 +462,9 @@ function CatalogBody({
                   <span className={styles.catalogItem__tag}>
                     {it.amc_sub_type_name || it.amc_type_name || "AMC"}
                   </span>
-                  <strong title={displayName}>{displayName}</strong>
+                  <strong title={displayName}>
+                    {prettyName(displayName)}
+                  </strong>
                   <span className={styles.catalogItem__meta}>
                     {it.item_code} · {it.uom || "Nos"}
                   </span>
@@ -522,6 +523,13 @@ export default function QuoteCartPage() {
     state: "",
     pincode: "",
     property_type: "Commercial",
+    shipping_address: "",
+    shipping_city: "",
+    shipping_state: "",
+    shipping_pincode: "",
+    shipping_mobile: "",
+    shipping_email: "",
+    sameAsSite: false,
     duration: "12 Months",
     price_list: "Standard Selling",
     notes: "",
@@ -544,9 +552,6 @@ export default function QuoteCartPage() {
   const [search, setSearch] = useState("");
   const [activeTypes, setActiveTypes] = useState([]);
 
-  /* ---------------------------------------------------------
-     Mount — migrate legacy qty → visits/units
-     --------------------------------------------------------- */
   useEffect(() => {
     setMounted(true);
 
@@ -630,9 +635,6 @@ export default function QuoteCartPage() {
     };
   }, [shouldFetch]);
 
-  /* ---------------------------------------------------------
-     VISITS handlers
-     --------------------------------------------------------- */
   const updateVisits = (item_code, delta) => {
     const next = getCart().map((it) =>
       it.item_code === item_code
@@ -652,9 +654,6 @@ export default function QuoteCartPage() {
     setCart(next);
   };
 
-  /* ---------------------------------------------------------
-     UNITS handlers
-     --------------------------------------------------------- */
   const updateUnits = (item_code, delta) => {
     const next = getCart().map((it) =>
       it.item_code === item_code
@@ -674,9 +673,6 @@ export default function QuoteCartPage() {
     setCart(next);
   };
 
-  /* ---------------------------------------------------------
-     SUB-ITEM VISITS / UNITS handlers
-     --------------------------------------------------------- */
   const handleSubVisits = (parentCode, subCode, value) => {
     const visits = Math.max(1, Number(value) || 1);
     const next = getCart().map((it) =>
@@ -709,9 +705,6 @@ export default function QuoteCartPage() {
     setCart(next);
   };
 
-  /* ---------------------------------------------------------
-     Other cart helpers
-     --------------------------------------------------------- */
   const handleRemove = (item_code) => {
     removeFromCart(item_code);
     setCart(getCart());
@@ -746,7 +739,6 @@ export default function QuoteCartPage() {
       units: 1,
     });
     setCart(getCart());
-    // refresh parent snapshot so selected list updates
     const refreshed = getCart().find(
       (c) => c.item_code === lineAddParent.item_code
     );
@@ -758,16 +750,12 @@ export default function QuoteCartPage() {
   const handleSubRemove = (parentCode, subCode) => {
     removeSubItem(parentCode, subCode);
     setCart(getCart());
-    // refresh parent snapshot so selected list updates
     const refreshed = getCart().find((c) => c.item_code === parentCode);
     if (refreshed) setLineAddParent(refreshed);
     setToast("Sub-item removed");
     setTimeout(() => setToast(""), 1800);
   };
 
-  /* ---------------------------------------------------------
-     Summary
-     --------------------------------------------------------- */
   const {
     subtotal,
     payableCount,
@@ -818,9 +806,6 @@ export default function QuoteCartPage() {
     };
   }, [cart]);
 
-  /* ---------------------------------------------------------
-     Quote modal helpers
-     --------------------------------------------------------- */
   const openBulkQuote = () => {
     setQuoteItems(null);
     setQuoteOpen(true);
@@ -857,8 +842,45 @@ export default function QuoteCartPage() {
     };
   }, [activeQuoteItems]);
 
-  const handleChange = (e) =>
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+
+    setForm((f) => {
+      const next = { ...f, [name]: value };
+
+      if (f.sameAsSite) {
+        if (name === "address") next.shipping_address = value;
+        if (name === "city") next.shipping_city = value;
+        if (name === "state") next.shipping_state = value;
+        if (name === "pincode") next.shipping_pincode = value;
+        if (name === "email") next.shipping_email = value;
+        if (name === "phone") next.shipping_mobile = value;
+      }
+
+      return next;
+    });
+  };
+
+  const handleSameAsSiteToggle = (e) => {
+    const checked = e.target.checked;
+
+    setForm((f) => {
+      if (!checked) {
+        return { ...f, sameAsSite: false };
+      }
+
+      return {
+        ...f,
+        sameAsSite: true,
+        shipping_address: f.address,
+        shipping_city: f.city,
+        shipping_state: f.state,
+        shipping_pincode: f.pincode,
+        shipping_email: f.email,
+        shipping_mobile: f.phone,
+      };
+    });
+  };
 
   const buildQuoteItems = (lines, propertyType = "Commercial") => {
     const out = [];
@@ -938,6 +960,13 @@ export default function QuoteCartPage() {
         city: form.city.trim(),
         state: form.state.trim(),
         pincode: form.pincode.trim(),
+
+        shipping_address: (form.shipping_address || "").trim(),
+        shipping_city: (form.shipping_city || "").trim(),
+        shipping_state: (form.shipping_state || "").trim(),
+        shipping_pincode: (form.shipping_pincode || "").trim(),
+        shipping_mobile: (form.shipping_mobile || "").trim(),
+        shipping_email: (form.shipping_email || "").trim(),
 
         remarks: form.notes.trim(),
         property_type: form.property_type,
@@ -1047,9 +1076,6 @@ export default function QuoteCartPage() {
     }
   };
 
-  /* ---------------------------------------------------------
-     Catalog filters
-     --------------------------------------------------------- */
   const catalogTypes = useMemo(() => {
     const map = new Map();
     catalog.forEach((it) => {
@@ -1092,12 +1118,12 @@ export default function QuoteCartPage() {
   if (!mounted) return null;
 
   const lineAddParentTotal = lineAddParent ? lineTotal(lineAddParent).total : 0;
+  const shippingLocked = form.sameAsSite;
 
   return (
     <>
       <AMCNavbar />
       <main className={styles.cartPage}>
-        {/* HERO */}
         <section className={styles.cartHero}>
           <div className={styles.cartHero__inner}>
             <div className={styles.cartHero__left}>
@@ -1165,7 +1191,6 @@ export default function QuoteCartPage() {
           </div>
         </section>
 
-        {/* SUBMITTED */}
         {submitted && (
           <section className={styles.cartSection}>
             <div className={styles.quoteSuccess}>
@@ -1393,7 +1418,6 @@ export default function QuoteCartPage() {
           </section>
         )}
 
-        {/* EMPTY */}
         {!submitted && cart.length === 0 && (
           <section className={styles.cartSection}>
             <div className={styles.cartEmpty}>
@@ -1422,7 +1446,6 @@ export default function QuoteCartPage() {
           </section>
         )}
 
-        {/* CART + SUMMARY */}
         {!submitted && cart.length > 0 && (
           <section className={styles.cartSection} id="checkout">
             <div className={styles.cartGrid}>
@@ -1472,157 +1495,175 @@ export default function QuoteCartPage() {
                             {displayName.slice(0, 2).toUpperCase()}
                           </div>
 
-                          <div className={styles.cartItem__info}>
-                            <span className={styles.cartItem__tag}>
-                              {it.amc_sub_type_name ||
-                                it.amc_sub_type ||
-                                it.amc_type_name ||
-                                "AMC"}
-                            </span>
-                            <h3 title={displayName}>{displayName}</h3>
-                            <p className={styles.cartItem__meta}>
-                              Code {it.item_code} · UOM {it.uom || "Nos"}
-                              {subCount > 0 &&
-                                ` · ${subCount} add-on${
-                                  subCount > 1 ? "s" : ""
-                                }`}
-                            </p>
-                          </div>
-
-                          {hasQtyControls(it) && (
-                            <div className={styles.cartItem__counts}>
-                              {showVisit && (
-                                <div className={styles.cartItem__count}>
-                                  <span
-                                    className={styles.cartItem__countLabel}
-                                  >
-                                    Visits
-                                  </span>
-                                  <div className={styles.cartItem__qty}>
-                                    <button
-                                      type="button"
-                                      aria-label="Decrease visits"
-                                      onClick={() =>
-                                        updateVisits(it.item_code, -1)
-                                      }
-                                    >
-                                      −
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={it.visits || 1}
-                                      onChange={(e) =>
-                                        setVisits(
-                                          it.item_code,
-                                          e.target.value
-                                        )
-                                      }
-                                    />
-                                    <button
-                                      type="button"
-                                      aria-label="Increase visits"
-                                      onClick={() =>
-                                        updateVisits(it.item_code, 1)
-                                      }
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-
-                              {showUnit && (
-                                <div className={styles.cartItem__count}>
-                                  <span
-                                    className={styles.cartItem__countLabel}
-                                  >
-                                    Units
-                                  </span>
-                                  <div className={styles.cartItem__qty}>
-                                    <button
-                                      type="button"
-                                      aria-label="Decrease units"
-                                      onClick={() =>
-                                        updateUnits(it.item_code, -1)
-                                      }
-                                    >
-                                      −
-                                    </button>
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={it.units || 1}
-                                      onChange={(e) =>
-                                        setUnits(it.item_code, e.target.value)
-                                      }
-                                    />
-                                    <button
-                                      type="button"
-                                      aria-label="Increase units"
-                                      onClick={() =>
-                                        updateUnits(it.item_code, 1)
-                                      }
-                                    >
-                                      +
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          <div className={styles.cartItem__price}>
-                            {hasPayable ? (
-                              <>
-                                <span className={styles.cartItem__rate}>
-                                  {(() => {
-                                    const parts = [];
-                                    if (showVisit)
-                                      parts.push(
-                                        `${it.visits || 1} visit${
-                                          (it.visits || 1) > 1 ? "s" : ""
-                                        }`
-                                      );
-                                    if (showUnit)
-                                      parts.push(
-                                        `${it.units || 1} unit${
-                                          (it.units || 1) > 1 ? "s" : ""
-                                        }`
-                                      );
-                                    return parts.length
-                                      ? parts.join(" × ")
-                                      : "Fixed";
-                                  })()}
-                                </span>
-                                <span className={styles.cartItem__line}>
-                                  {inr(total, it.currency)}
-                                </span>
-                              </>
-                            ) : (
-                              <span className={styles.cartItem__onRequest}>
-                                On request
+                          <div className={styles.cartItem__body}>
+                            <div className={styles.cartItem__info}>
+                              <span className={styles.cartItem__tag}>
+                                {it.amc_sub_type_name ||
+                                  it.amc_sub_type ||
+                                  it.amc_type_name ||
+                                  "AMC"}
                               </span>
-                            )}
+                              <h3 title={displayName}>
+                                {prettyName(displayName)}
+                              </h3>
+                              <p className={styles.cartItem__meta}>
+                                Code {it.item_code} · UOM {it.uom || "Nos"}
+                                {subCount > 0 &&
+                                  ` · ${subCount} add-on${
+                                    subCount > 1 ? "s" : ""
+                                  }`}
+                              </p>
+                            </div>
+
+                            <div className={styles.cartItem__controls}>
+                              {hasQtyControls(it) && (
+                                <div className={styles.cartItem__counts}>
+                                  {showVisit && (
+                                    <div className={styles.cartItem__count}>
+                                      <span
+                                        className={
+                                          styles.cartItem__countLabel
+                                        }
+                                      >
+                                        Visits
+                                      </span>
+                                      <div className={styles.cartItem__qty}>
+                                        <button
+                                          type="button"
+                                          aria-label="Decrease visits"
+                                          onClick={() =>
+                                            updateVisits(it.item_code, -1)
+                                          }
+                                        >
+                                          −
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={it.visits || 1}
+                                          onChange={(e) =>
+                                            setVisits(
+                                              it.item_code,
+                                              e.target.value
+                                            )
+                                          }
+                                        />
+                                        <button
+                                          type="button"
+                                          aria-label="Increase visits"
+                                          onClick={() =>
+                                            updateVisits(it.item_code, 1)
+                                          }
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {showUnit && (
+                                    <div className={styles.cartItem__count}>
+                                      <span
+                                        className={
+                                          styles.cartItem__countLabel
+                                        }
+                                      >
+                                        Units
+                                        <em className={styles.cartItem__uom}>
+                                          {it.uom || it.stock_uom || "Nos"}
+                                        </em>
+                                      </span>
+                                      <div className={styles.cartItem__qty}>
+                                        <button
+                                          type="button"
+                                          aria-label="Decrease units"
+                                          onClick={() =>
+                                            updateUnits(it.item_code, -1)
+                                          }
+                                        >
+                                          −
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={it.units || 1}
+                                          onChange={(e) =>
+                                            setUnits(
+                                              it.item_code,
+                                              e.target.value
+                                            )
+                                          }
+                                        />
+                                        <button
+                                          type="button"
+                                          aria-label="Increase units"
+                                          onClick={() =>
+                                            updateUnits(it.item_code, 1)
+                                          }
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              <div className={styles.cartItem__price}>
+                                {hasPayable ? (
+                                  <>
+                                    <span className={styles.cartItem__rate}>
+                                      {(() => {
+                                        const parts = [];
+                                        if (showVisit)
+                                          parts.push(
+                                            `${it.visits || 1} visit${
+                                              (it.visits || 1) > 1 ? "s" : ""
+                                            }`
+                                          );
+                                        if (showUnit)
+                                          parts.push(
+                                            `${it.units || 1} unit${
+                                              (it.units || 1) > 1 ? "s" : ""
+                                            }`
+                                          );
+                                        return parts.length
+                                          ? parts.join(" × ")
+                                          : "Fixed";
+                                      })()}
+                                    </span>
+                                    <span className={styles.cartItem__line}>
+                                      {inr(total, it.currency)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className={styles.cartItem__onRequest}>
+                                    On request
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
-                          <button
-                            type="button"
-                            className={styles.cartItem__quote}
-                            onClick={() => openItemQuote(it)}
-                          >
-                            Quote
-                            <span>↗</span>
-                          </button>
+                          <div className={styles.cartItem__actions}>
+                            <button
+                              type="button"
+                              className={styles.cartItem__quote}
+                              onClick={() => openItemQuote(it)}
+                            >
+                              Quote
+                              <span>↗</span>
+                            </button>
 
-                          <button
-                            type="button"
-                            className={styles.cartItem__remove}
-                            aria-label="Remove item"
-                            onClick={() => handleRemove(it.item_code)}
-                          >
-                            ×
-                          </button>
+                            <button
+                              type="button"
+                              className={styles.cartItem__remove}
+                              aria-label="Remove item"
+                              onClick={() => handleRemove(it.item_code)}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
 
                         {subItems.length > 0 && (
@@ -1643,7 +1684,9 @@ export default function QuoteCartPage() {
                                     {sName.slice(0, 2).toUpperCase()}
                                   </div>
                                   <div className={styles.subItem__info}>
-                                    <strong title={sName}>{sName}</strong>
+                                    <strong title={sName}>
+                                      {prettyName(sName)}
+                                    </strong>
                                     <span>
                                       {s.item_code} · {s.uom || "Nos"}
                                     </span>
@@ -1714,7 +1757,10 @@ export default function QuoteCartPage() {
                                               styles.subItem__countLabel
                                             }
                                           >
-                                            Units
+                                            Units{" "}
+                                            <em className={styles.subItem__uom}>
+                                              {s.uom || s.stock_uom || "Nos"}
+                                            </em>
                                           </span>
                                           <div className={styles.subItem__qty}>
                                             <button
@@ -1986,7 +2032,6 @@ export default function QuoteCartPage() {
           </section>
         )}
 
-        {/* ADD ITEMS MODAL */}
         {addOpen && (
           <div
             className={styles.cartModal}
@@ -2052,7 +2097,6 @@ export default function QuoteCartPage() {
           </div>
         )}
 
-        {/* ADD MORE TO A SPECIFIC CART LINE */}
         {lineAddOpen && lineAddParent && (
           <div
             className={styles.cartModal}
@@ -2081,7 +2125,9 @@ export default function QuoteCartPage() {
                 <h2 id="line-add-title">
                   Adding to{" "}
                   <span>
-                    {lineAddParent.item_name || lineAddParent.item_code}
+                    {prettyName(
+                      lineAddParent.item_name || lineAddParent.item_code
+                    )}
                   </span>
                 </h2>
                 <p>
@@ -2097,8 +2143,14 @@ export default function QuoteCartPage() {
                     .toUpperCase()}
                 </div>
                 <div className={styles.lineAddParent__info}>
-                  <strong>
-                    {lineAddParent.item_name || lineAddParent.item_code}
+                  <strong
+                    title={
+                      lineAddParent.item_name || lineAddParent.item_code
+                    }
+                  >
+                    {prettyName(
+                      lineAddParent.item_name || lineAddParent.item_code
+                    )}
                   </strong>
                   <span>
                     {(() => {
@@ -2171,7 +2223,6 @@ export default function QuoteCartPage() {
           </div>
         )}
 
-        {/* REQUEST QUOTE MODAL */}
         {quoteOpen && (
           <div
             className={styles.cartModal}
@@ -2215,10 +2266,10 @@ export default function QuoteCartPage() {
                       } and ${quoteSummary.totalUnits} unit${
                         quoteSummary.totalUnits > 1 ? "s" : ""
                       } and get back with a detailed quotation within 24 hours.`
-                    : `We'll review "${
+                    : `We'll review "${prettyName(
                         activeQuoteItems[0].item_name ||
-                        activeQuoteItems[0].item_code
-                      }" and get back with a detailed quotation.`}
+                          activeQuoteItems[0].item_code
+                      )}" and get back with a detailed quotation.`}
                 </p>
               </div>
 
@@ -2253,7 +2304,9 @@ export default function QuoteCartPage() {
                           .toUpperCase()}
                       </div>
                       <div className={styles.cartModal__previewInfo}>
-                        <strong>{it.item_name || it.item_code}</strong>
+                        <strong title={it.item_name || it.item_code}>
+                          {prettyName(it.item_name || it.item_code)}
+                        </strong>
                         <span>{parts.join(" · ")}</span>
                       </div>
                       <div className={styles.cartModal__previewPrice}>
@@ -2393,6 +2446,119 @@ export default function QuoteCartPage() {
                 </div>
 
                 <div className={styles.formSection}>
+                  <div className={styles.formSection__head}>
+                    <span className={styles.formSection__label}>
+                      Shipping details
+                    </span>
+                    <label className={styles.cartModal__checkbox}>
+                      <input
+                        type="checkbox"
+                        checked={form.sameAsSite}
+                        onChange={handleSameAsSiteToggle}
+                      />
+                      <span
+                        className={styles.cartModal__checkboxBox}
+                        aria-hidden="true"
+                      >
+                        <svg
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          width="14"
+                          height="14"
+                        >
+                          <path
+                            d="M3 8.5L6.5 12L13 4.5"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className={styles.cartModal__checkboxLabel}>
+                        Same as Site details
+                      </span>
+                    </label>
+                  </div>
+                  <div className={styles.cartModal__grid}>
+                    <label className={styles.cartModal__full}>
+                      <span>Shipping Address *</span>
+                      <textarea
+                        name="shipping_address"
+                        rows="2"
+                        value={form.shipping_address}
+                        onChange={handleChange}
+                        placeholder="Building, street, area"
+                        required
+                        disabled={shippingLocked}
+                      />
+                    </label>
+                    <label>
+                      <span>Shipping City *</span>
+                      <input
+                        type="text"
+                        name="shipping_city"
+                        value={form.shipping_city}
+                        onChange={handleChange}
+                        placeholder="Mumbai"
+                        required
+                        disabled={shippingLocked}
+                      />
+                    </label>
+                    <label>
+                      <span>Shipping Email *</span>
+                      <input
+                        type="email"
+                        name="shipping_email"
+                        value={form.shipping_email}
+                        onChange={handleChange}
+                        placeholder="you@company.com"
+                        required
+                        disabled={shippingLocked}
+                      />
+                    </label>
+                    <label>
+                      <span>Shipping Mobile *</span>
+                      <input
+                        type="tel"
+                        name="shipping_mobile"
+                        value={form.shipping_mobile}
+                        onChange={handleChange}
+                        placeholder="+91 98765 43210"
+                        required
+                        disabled={shippingLocked}
+                      />
+                    </label>
+                    <label>
+                      <span>Shipping State *</span>
+                      <input
+                        type="text"
+                        name="shipping_state"
+                        value={form.shipping_state}
+                        onChange={handleChange}
+                        placeholder="Maharashtra"
+                        required
+                        disabled={shippingLocked}
+                      />
+                    </label>
+                    <label>
+                      <span>Shipping Pincode *</span>
+                      <input
+                        type="text"
+                        name="shipping_pincode"
+                        value={form.shipping_pincode}
+                        onChange={handleChange}
+                        placeholder="400069"
+                        inputMode="numeric"
+                        pattern="[0-9]{4,10}"
+                        required
+                        disabled={shippingLocked}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className={styles.formSection}>
                   <span className={styles.formSection__label}>
                     AMC preferences
                   </span>
@@ -2408,16 +2574,6 @@ export default function QuoteCartPage() {
                         <option value="6 Months">6 Months</option>
                         <option value="12 Months">12 Months</option>
                       </select>
-                    </label>
-                    <label>
-                      {/* <span>Price List</span>
-                      <input
-                        type="text"
-                        name="price_list"
-                        value={form.price_list}
-                        onChange={handleChange}
-                        placeholder="Standard Selling"
-                      /> */}
                     </label>
                     <label className={styles.cartModal__full}>
                       <span>Remarks (optional)</span>

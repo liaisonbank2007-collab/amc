@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation'; // 👈 NEW
 import { useForm } from 'react-hook-form';
 import styles from './register.module.scss';
 
 export default function RegistrationPage() {
+  const router = useRouter(); // 👈 NEW
   const [apiMessage, setApiMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -58,6 +60,11 @@ export default function RegistrationPage() {
           text: result.data.message || 'Registration successful!',
         });
         reset();
+
+        // 👇 NEW: redirect to login after a short delay so the user sees the message
+        setTimeout(() => {
+          router.push('/login');
+        }, 1200);
       } else {
         setApiMessage({
           type: 'error',
@@ -105,7 +112,6 @@ export default function RegistrationPage() {
         <div className={styles.card}>
           {/* Brand */}
           <div className={styles.brand}>
-         
             <h1 className={styles.title}>Create your account</h1>
             <p className={styles.subtitle}>
               Join Liaison Bank in just a few seconds
@@ -455,8 +461,6 @@ export default function RegistrationPage() {
             </a>
           </p>
         </div>
-
-      
       </div>
     </div>
   );

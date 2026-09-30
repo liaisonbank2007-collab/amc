@@ -554,3 +554,37 @@ $bp-sm: 640px;
   .cardInner { padding: $space-xl $space-lg; }
   .title     { font-size: 1.5rem; }
 }
+// ============================================
+// PASSWORD TOGGLE (Show / Hide)
+// ============================================
+.togglePassword {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  padding: 0 $space-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: $color-text-muted;
+  transition: color $transition-base;
+
+  &:hover {
+    color: $color-primary-hover;
+  }
+
+  &:focus-visible {
+    outline: none;
+    color: $color-primary;
+    box-shadow: 0 0 0 2px rgba($color-primary, 0.35);
+    border-radius: $radius-sm;
+  }
+}
+
+.toggleIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
