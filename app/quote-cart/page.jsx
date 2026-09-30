@@ -2476,7 +2476,7 @@ export default function QuoteCartPage() {
                         </svg>
                       </span>
                       <span className={styles.cartModal__checkboxLabel}>
-                        Same as Site details
+                        Same as Billing details
                       </span>
                     </label>
                   </div>
