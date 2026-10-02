@@ -56,6 +56,172 @@ const buildPrintUrl = (printUrl, { download = false } = {}) => {
 };
 
 /* =========================================================
+   Quantity stepper — type-friendly, hold-to-repeat
+   ========================================================= */
+function QtyStepper({
+  value,
+  onChange,
+  min = 1,
+  max = 100000,
+  className,
+  inputClassName,
+}) {
+  const [draft, setDraft] = React.useState(String(value ?? min));
+  const [focused, setFocused] = React.useState(false);
+
+  // Sync external value → draft, but only when not actively typing
+  React.useEffect(() => {
+    if (!focused) setDraft(String(value ?? min));
+  }, [value, focused, min]);
+
+  const clamp = React.useCallback(
+    (n) => {
+      if (!Number.isFinite(n)) return min;
+      const int = Math.round(n);
+      if (int < min) return min;
+      if (int > max) return max;
+      return int;
+    },
+    [min, max]
+  );
+
+  const commit = React.useCallback(
+    (raw) => {
+      const n = Number(raw);
+      const safe = clamp(n);
+      setDraft(String(safe));
+      if (safe !== value) onChange(safe);
+    },
+    [clamp, onChange, value]
+  );
+
+  const bump = React.useCallback(
+    (delta) => {
+      const base = Number(draft);
+      const current = Number.isFinite(base) && base > 0 ? base : value || min;
+      const next = clamp(current + delta);
+      setDraft(String(next));
+      onChange(next);
+    },
+    [draft, value, min, clamp, onChange]
+  );
+
+  /* ---- hold-to-repeat with acceleration ---- */
+  const timeoutRef = React.useRef(null);
+  const intervalRef = React.useRef(null);
+  const holdStartRef = React.useRef(0);
+  const holdingRef = React.useRef(false);
+
+  const tick = React.useCallback(
+    (dir) => {
+      const elapsed = Date.now() - holdStartRef.current;
+      // 0–600ms: 1 per tick; 600–1500ms: 5; 1500–3000ms: 25; 3000ms+: 100
+      let step = 1;
+      if (elapsed > 3000) step = 100;
+      else if (elapsed > 1500) step = 25;
+      else if (elapsed > 600) step = 5;
+      bump(dir * step);
+    },
+    [bump]
+  );
+
+  const startHold = (dir) => (e) => {
+    // Only respond to primary button / touch
+    if (e && e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    holdingRef.current = true;
+    holdStartRef.current = Date.now();
+
+    // Fire one immediately so a tap feels instant
+    bump(dir);
+
+    timeoutRef.current = setTimeout(() => {
+      intervalRef.current = setInterval(() => {
+        if (!holdingRef.current) return;
+        tick(dir);
+      }, 80);
+    }, 350);
+  };
+
+  const stopHold = () => {
+    holdingRef.current = false;
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  React.useEffect(() => () => stopHold(), []);
+
+  return (
+    <div className={className}>
+      <button
+        type="button"
+        aria-label="Decrease"
+        onPointerDown={startHold(-1)}
+        onPointerUp={stopHold}
+        onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        −
+      </button>
+
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="off"
+        value={draft}
+        className={inputClassName}
+        onFocus={(e) => {
+          setFocused(true);
+          e.currentTarget.select();
+        }}
+        onChange={(e) => {
+          const digits = e.target.value.replace(/[^\d]/g, "");
+          setDraft(digits);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          commit(e.target.value);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.currentTarget.blur();
+          } else if (e.key === "Escape") {
+            setDraft(String(value ?? min));
+            e.currentTarget.blur();
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            bump(1);
+          } else if (e.key === "ArrowDown") {
+            e.preventDefault();
+            bump(-1);
+          }
+        }}
+      />
+
+      <button
+        type="button"
+        aria-label="Increase"
+        onPointerDown={startHold(1)}
+        onPointerUp={stopHold}
+        onPointerLeave={stopHold}
+        onPointerCancel={stopHold}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+/* =========================================================
    Visibility helpers
    ========================================================= */
 const hasUnitControl = (it) => {
@@ -635,18 +801,11 @@ export default function QuoteCartPage() {
     };
   }, [shouldFetch]);
 
-  const updateVisits = (item_code, delta) => {
-    const next = getCart().map((it) =>
-      it.item_code === item_code
-        ? { ...it, visits: Math.max(1, (it.visits || 1) + delta) }
-        : it
-    );
-    saveCart(next);
-    setCart(next);
-  };
-
+  /* ----------------------------------------------------------
+     Cart quantity mutators — always store integer ≥ 1
+     ---------------------------------------------------------- */
   const setVisits = (item_code, value) => {
-    const visits = Math.max(1, Number(value) || 1);
+    const visits = Math.max(1, Math.floor(Number(value) || 1));
     const next = getCart().map((it) =>
       it.item_code === item_code ? { ...it, visits } : it
     );
@@ -654,18 +813,8 @@ export default function QuoteCartPage() {
     setCart(next);
   };
 
-  const updateUnits = (item_code, delta) => {
-    const next = getCart().map((it) =>
-      it.item_code === item_code
-        ? { ...it, units: Math.max(1, (it.units || 1) + delta) }
-        : it
-    );
-    saveCart(next);
-    setCart(next);
-  };
-
   const setUnits = (item_code, value) => {
-    const units = Math.max(1, Number(value) || 1);
+    const units = Math.max(1, Math.floor(Number(value) || 1));
     const next = getCart().map((it) =>
       it.item_code === item_code ? { ...it, units } : it
     );
@@ -674,7 +823,7 @@ export default function QuoteCartPage() {
   };
 
   const handleSubVisits = (parentCode, subCode, value) => {
-    const visits = Math.max(1, Number(value) || 1);
+    const visits = Math.max(1, Math.floor(Number(value) || 1));
     const next = getCart().map((it) =>
       it.item_code === parentCode
         ? {
@@ -690,7 +839,7 @@ export default function QuoteCartPage() {
   };
 
   const handleSubUnits = (parentCode, subCode, value) => {
-    const units = Math.max(1, Number(value) || 1);
+    const units = Math.max(1, Math.floor(Number(value) || 1));
     const next = getCart().map((it) =>
       it.item_code === parentCode
         ? {
@@ -950,7 +1099,6 @@ export default function QuoteCartPage() {
       const itemsPayload = buildQuoteItems(
         activeQuoteItems,
         form.property_type
-        
       );
 
       const payload = {
@@ -1530,37 +1678,13 @@ export default function QuoteCartPage() {
                                       >
                                         Visits
                                       </span>
-                                      <div className={styles.cartItem__qty}>
-                                        <button
-                                          type="button"
-                                          aria-label="Decrease visits"
-                                          onClick={() =>
-                                            updateVisits(it.item_code, -1)
-                                          }
-                                        >
-                                          −
-                                        </button>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          value={it.visits || 1}
-                                          onChange={(e) =>
-                                            setVisits(
-                                              it.item_code,
-                                              e.target.value
-                                            )
-                                          }
-                                        />
-                                        <button
-                                          type="button"
-                                          aria-label="Increase visits"
-                                          onClick={() =>
-                                            updateVisits(it.item_code, 1)
-                                          }
-                                        >
-                                          +
-                                        </button>
-                                      </div>
+                                      <QtyStepper
+                                        className={styles.cartItem__qty}
+                                        value={it.visits || 1}
+                                        onChange={(n) =>
+                                          setVisits(it.item_code, n)
+                                        }
+                                      />
                                     </div>
                                   )}
 
@@ -1576,37 +1700,13 @@ export default function QuoteCartPage() {
                                           {it.uom || it.stock_uom || "Nos"}
                                         </em>
                                       </span>
-                                      <div className={styles.cartItem__qty}>
-                                        <button
-                                          type="button"
-                                          aria-label="Decrease units"
-                                          onClick={() =>
-                                            updateUnits(it.item_code, -1)
-                                          }
-                                        >
-                                          −
-                                        </button>
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          value={it.units || 1}
-                                          onChange={(e) =>
-                                            setUnits(
-                                              it.item_code,
-                                              e.target.value
-                                            )
-                                          }
-                                        />
-                                        <button
-                                          type="button"
-                                          aria-label="Increase units"
-                                          onClick={() =>
-                                            updateUnits(it.item_code, 1)
-                                          }
-                                        >
-                                          +
-                                        </button>
-                                      </div>
+                                      <QtyStepper
+                                        className={styles.cartItem__qty}
+                                        value={it.units || 1}
+                                        onChange={(n) =>
+                                          setUnits(it.item_code, n)
+                                        }
+                                      />
                                     </div>
                                   )}
                                 </div>
@@ -1620,13 +1720,17 @@ export default function QuoteCartPage() {
                                         const parts = [];
                                         if (showVisit)
                                           parts.push(
-                                            `${it.visits || 1} visit${
+                                            `${(
+                                              it.visits || 1
+                                            ).toLocaleString("en-IN")} visit${
                                               (it.visits || 1) > 1 ? "s" : ""
                                             }`
                                           );
                                         if (showUnit)
                                           parts.push(
-                                            `${it.units || 1} unit${
+                                            `${(
+                                              it.units || 1
+                                            ).toLocaleString("en-IN")} unit${
                                               (it.units || 1) > 1 ? "s" : ""
                                             }`
                                           );
@@ -1708,46 +1812,17 @@ export default function QuoteCartPage() {
                                           >
                                             Visits
                                           </span>
-                                          <div className={styles.subItem__qty}>
-                                            <button
-                                              type="button"
-                                              aria-label="Decrease visits"
-                                              onClick={() =>
-                                                handleSubVisits(
-                                                  it.item_code,
-                                                  s.item_code,
-                                                  (s.visits || 1) - 1
-                                                )
-                                              }
-                                            >
-                                              −
-                                            </button>
-                                            <input
-                                              type="number"
-                                              min="1"
-                                              value={s.visits || 1}
-                                              onChange={(e) =>
-                                                handleSubVisits(
-                                                  it.item_code,
-                                                  s.item_code,
-                                                  e.target.value
-                                                )
-                                              }
-                                            />
-                                            <button
-                                              type="button"
-                                              aria-label="Increase visits"
-                                              onClick={() =>
-                                                handleSubVisits(
-                                                  it.item_code,
-                                                  s.item_code,
-                                                  (s.visits || 1) + 1
-                                                )
-                                              }
-                                            >
-                                              +
-                                            </button>
-                                          </div>
+                                          <QtyStepper
+                                            className={styles.subItem__qty}
+                                            value={s.visits || 1}
+                                            onChange={(n) =>
+                                              handleSubVisits(
+                                                it.item_code,
+                                                s.item_code,
+                                                n
+                                              )
+                                            }
+                                          />
                                         </div>
                                       )}
 
@@ -1765,46 +1840,17 @@ export default function QuoteCartPage() {
                                               {s.uom || s.stock_uom || "Nos"}
                                             </em>
                                           </span>
-                                          <div className={styles.subItem__qty}>
-                                            <button
-                                              type="button"
-                                              aria-label="Decrease units"
-                                              onClick={() =>
-                                                handleSubUnits(
-                                                  it.item_code,
-                                                  s.item_code,
-                                                  (s.units || 1) - 1
-                                                )
-                                              }
-                                            >
-                                              −
-                                            </button>
-                                            <input
-                                              type="number"
-                                              min="1"
-                                              value={s.units || 1}
-                                              onChange={(e) =>
-                                                handleSubUnits(
-                                                  it.item_code,
-                                                  s.item_code,
-                                                  e.target.value
-                                                )
-                                              }
-                                            />
-                                            <button
-                                              type="button"
-                                              aria-label="Increase units"
-                                              onClick={() =>
-                                                handleSubUnits(
-                                                  it.item_code,
-                                                  s.item_code,
-                                                  (s.units || 1) + 1
-                                                )
-                                              }
-                                            >
-                                              +
-                                            </button>
-                                          </div>
+                                          <QtyStepper
+                                            className={styles.subItem__qty}
+                                            value={s.units || 1}
+                                            onChange={(n) =>
+                                              handleSubUnits(
+                                                it.item_code,
+                                                s.item_code,
+                                                n
+                                              )
+                                            }
+                                          />
                                         </div>
                                       )}
                                     </div>
