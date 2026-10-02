@@ -916,6 +916,8 @@ export default function QuoteCartPage() {
 
           amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
           amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
+          custom_min_amount: it.custom_min_amount || "",
+          custom_unit: it.custom_unit || " ",
 
           qty,
           custom_visit,
@@ -948,6 +950,7 @@ export default function QuoteCartPage() {
       const itemsPayload = buildQuoteItems(
         activeQuoteItems,
         form.property_type
+        
       );
 
       const payload = {
