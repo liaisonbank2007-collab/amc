@@ -574,7 +574,7 @@ useEffect(() => {
     <>
       <AMCNavbar />
       <main className={styles.cartPage}>
-        <CartHero
+         <CartHero
           styles={styles}
           cartLength={cart.length}
           totalVisits={totalVisits}
@@ -590,7 +590,11 @@ useEffect(() => {
         )}
 
         {!submitted && cart.length === 0 && (
-          <EmptyCart styles={styles} onAddItems={() => setAddOpen(true)} />
+          <EmptyCart 
+            styles={styles} 
+            onAddItems={() => setAddOpen(true)} 
+            refreshing={refreshing} 
+          />
         )}
 
         {!submitted && cart.length > 0 && (

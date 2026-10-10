@@ -20,6 +20,9 @@ const QUOTE_FORM_ID = "quote-form";
 // human perception, but long enough to collapse the native event cascade.
 const GUARD_COALESCE_MS = 400;
 
+// `name` attribute of the field we focus when the user confirms edit mode.
+const FIRST_EDITABLE_FIELD_NAME = "name";
+
 export default function QuoteModal({
   styles,
   isBulk,
@@ -44,6 +47,9 @@ export default function QuoteModal({
    *
    * While in view mode, ANY attempt to edit a field triggers a single
    * SweetAlert asking the user to confirm switching back to edit mode.
+   * On confirm, the modal scrolls to the top and focus lands on the
+   * Full Name field — with no intermediate scroll-down from SweetAlert's
+   * native focus restoration.
    */
   const [isViewMode, setIsViewMode] = useState(false);
 
@@ -58,9 +64,13 @@ export default function QuoteModal({
   // mousedown → focus → click event burst into one popup.
   const lastGuardAtRef = useRef(0);
 
-  // Remember which field the user tried to edit so we can focus it after
-  // switching back to edit mode.
-  const pendingFocusRef = useRef(null);
+  // Set to true when we want the next post-commit effect to move focus
+  // to the Full Name field and scroll to top. Cleared as soon as it fires.
+  const shouldFocusFullNameRef = useRef(false);
+
+  // Tracks the second rAF id from the focus effect so we can cancel it
+  // on unmount.
+  const raf2Ref = useRef(0);
 
   // Stable, SSR-safe id
   const titleId = useId();
@@ -109,19 +119,137 @@ export default function QuoteModal({
   }, [isViewMode, submitting, onClose]);
 
   /* ------------------------------------------------------------------ *
-   * 3. Guard: intercept any edit attempt while in view mode.
+   * 3. Scroll the modal panel back to the top.
    *
-   *    Fires once per user gesture. Rapid mousedown/focus/click bursts
-   *    are coalesced via `lastGuardAtRef`, and an already-open Swal
-   *    short-circuits immediately via `swalOpenRef`.
+   *    Walks up the DOM to find the real scroller (in case the panel is
+   *    wrapped) and scrolls it smoothly. Falls back to instant scroll on
+   *    older browsers or when the user prefers reduced motion.
+   * ------------------------------------------------------------------ */
+  const scrollPanelToTop = useCallback(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const behavior = prefersReducedMotion ? "auto" : "smooth";
+
+    let scroller = panel;
+    let node = panel.parentElement;
+    while (node) {
+      const style =
+        typeof window !== "undefined"
+          ? window.getComputedStyle(node)
+          : null;
+      const overflowY = style?.overflowY;
+      const canScroll =
+        (overflowY === "auto" || overflowY === "scroll") &&
+        node.scrollHeight > node.clientHeight;
+
+      if (canScroll) {
+        scroller = node;
+        break;
+      }
+      node = node.parentElement;
+    }
+
+    try {
+      scroller.scrollTo({ top: 0, behavior });
+    } catch {
+      scroller.scrollTop = 0;
+    }
+  }, []);
+
+  /* ------------------------------------------------------------------ *
+   * 4. Post-commit effect: focus Full Name the moment edit mode is on.
+   *
+   *    Runs whenever `isViewMode` changes. We only act when it flipped
+   *    to `false` AND the confirm path asked for it via the ref flag.
+   *
+   *    The scroll + focus happen inside a DOUBLE rAF so they run AFTER
+   *    the browser's own SweetAlert restore-focus scroll (if any). Doing
+   *    the scroll earlier gets overwritten by that native scroll.
+   *
+   *    Order matters: scroll first, focus second (with preventScroll so
+   *    the browser doesn't scroll again), then re-assert the top on the
+   *    next frame to absorb any final browser nudge.
+   * ------------------------------------------------------------------ */
+  useEffect(() => {
+    if (isViewMode) return;
+    if (!shouldFocusFullNameRef.current) return;
+
+    shouldFocusFullNameRef.current = false;
+
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    const formEl =
+      panel.querySelector(`#${QUOTE_FORM_ID}`) ||
+      panel.querySelector("form");
+    if (!formEl) return;
+
+    const field = formEl.querySelector(
+      `[name="${FIRST_EDITABLE_FIELD_NAME}"]`
+    );
+    if (!field || typeof field.focus !== "function") return;
+
+    const raf1 = window.requestAnimationFrame(() => {
+      const raf2 = window.requestAnimationFrame(() => {
+        // 1) Scroll to top (smooth).
+        scrollPanelToTop();
+
+        // 2) Focus Full Name without letting the browser scroll again.
+        try {
+          field.focus({ preventScroll: true });
+
+          if (
+            typeof field.select === "function" &&
+            field.tagName === "INPUT" &&
+            field.type !== "checkbox" &&
+            field.type !== "radio"
+          ) {
+            field.select();
+          }
+        } catch {
+          try {
+            field.focus();
+          } catch {
+            /* noop */
+          }
+        }
+
+        // 3) Safety net: some browsers nudge the scroll one frame after
+        //    focus. Re-assert the top.
+        window.requestAnimationFrame(() => {
+          scrollPanelToTop();
+        });
+      });
+
+      raf2Ref.current = raf2;
+    });
+
+    return () => {
+      window.cancelAnimationFrame(raf1);
+      if (raf2Ref.current) {
+        window.cancelAnimationFrame(raf2Ref.current);
+        raf2Ref.current = 0;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isViewMode]);
+
+  /* ------------------------------------------------------------------ *
+   * 5. Guard: intercept any edit attempt while in view mode.
+   *
+   *    `returnFocus: false` stops SweetAlert from restoring focus to the
+   *    element the user clicked — which is what causes the modal to
+   *    scroll down before our effect scrolls it back up.
    * ------------------------------------------------------------------ */
   const guardViewMode = useCallback(
     (e) => {
       if (!isViewMode) return false;
-
-      // Remember the element the user tried to interact with so we can
-      // re-focus it after they confirm.
-      pendingFocusRef.current = e?.target || null;
 
       // Coalesce rapid-fire events (mousedown → focus → click) into one.
       const now = Date.now();
@@ -143,41 +271,35 @@ export default function QuoteModal({
         focusCancel: true,
         allowOutsideClick: false,
         allowEscapeKey: true,
+        // 👇 Prevents the "scroll down then jump back to top" jitter.
+        returnFocus: false,
         customClass: {
           container: "quote-modal-swal",
+          confirmButton: "quote-confirm-btn", // Yes button
         },
       })
         .then((result) => {
           if (!result.isConfirmed) return;
 
-          setIsViewMode(false);
-
-          const el = pendingFocusRef.current;
-          pendingFocusRef.current = null;
-
-          if (!el || typeof el.focus !== "function") return;
-
-          // After React commits the mode flip, focus the pending field.
-          window.setTimeout(() => {
-            try {
-              if (
-                typeof el.select === "function" &&
-                el.tagName === "INPUT" &&
-                el.type !== "checkbox" &&
-                el.type !== "radio"
-              ) {
-                el.select();
-              } else {
-                el.focus();
-              }
-            } catch {
+          // Belt-and-braces: blur whatever SweetAlert may have focused,
+          // so no residual focus-scroll fires before our effect runs.
+          if (typeof document !== "undefined") {
+            const active = document.activeElement;
+            if (active && typeof active.blur === "function") {
               try {
-                el.focus();
+                active.blur();
               } catch {
                 /* noop */
               }
             }
-          }, 0);
+          }
+
+          // Ask the post-commit effect to scroll + focus Full Name.
+          shouldFocusFullNameRef.current = true;
+
+          // Flip the mode. The effect handles the rest once React has
+          // committed the re-render.
+          setIsViewMode(false);
         })
         .finally(() => {
           swalOpenRef.current = false;
@@ -189,7 +311,7 @@ export default function QuoteModal({
   );
 
   /* ------------------------------------------------------------------ *
-   * 4. Form change handlers — ignored while in view mode
+   * 6. Form change handlers — ignored while in view mode
    * ------------------------------------------------------------------ */
   const handleChange = useCallback(
     (e) => {
@@ -207,13 +329,6 @@ export default function QuoteModal({
     [guardViewMode, onSameAsSiteToggle]
   );
 
-  /**
-   * Single interaction handler used by every editable field.
-   *
-   * Using `onMouseDown` (not `onClick`) means it fires BEFORE the native
-   * focus event, so we only need ONE handler per field — no more double
-   * SweetAlert from `onClick` + `onFocus` firing together.
-   */
   const handleFieldInteract = useCallback(
     (e) => {
       guardViewMode(e);
@@ -222,9 +337,9 @@ export default function QuoteModal({
   );
 
   /* ------------------------------------------------------------------ *
-   * 5. Submit logic
+   * 7. Submit logic
    *    - "Preview Quotation" (type=submit, data-intent="preview"):
-   *         switches the form into view mode.
+   *         switches the form into view mode and scrolls to top.
    *    - "Submit Request" (type=submit, data-intent="submit"):
    *         only enabled once in view mode; calls onSubmit.
    *
@@ -245,6 +360,7 @@ export default function QuoteModal({
 
       if (intent === "preview") {
         setIsViewMode(true);
+        scrollPanelToTop();
         return;
       }
 
@@ -253,20 +369,25 @@ export default function QuoteModal({
         onSubmit?.(e);
       }
     },
-    [isViewMode, onSubmit]
+    [isViewMode, onSubmit, scrollPanelToTop]
   );
 
   /* ------------------------------------------------------------------ *
-   * 6. Return to edit mode — defensive against event bubbling
+   * 8. Return to edit mode via the Edit Details button.
+   *
+   *    Uses the same post-commit effect path as the Swal confirm, so
+   *    behaviour is identical: scroll to top, then focus Full Name.
    * ------------------------------------------------------------------ */
   const handleEditDetails = useCallback((e) => {
     e?.preventDefault?.();
     e?.stopPropagation?.();
+
+    shouldFocusFullNameRef.current = true;
     setIsViewMode(false);
   }, []);
 
   /* ------------------------------------------------------------------ *
-   * 7. Memoised preview rows
+   * 9. Memoised preview rows
    * ------------------------------------------------------------------ */
   const previewRows = useMemo(() => {
     return activeQuoteItems.map((it, idx) => {
@@ -383,6 +504,18 @@ export default function QuoteModal({
             </div>
           ))}
         </div>
+
+        {/* -------- Fixed Preview Mode label (only in view mode) -------- */}
+        {isViewMode && (
+          <div
+            className={styles.cartModal__previewModeLabel}
+            role="status"
+            aria-live="polite"
+          >
+            <span className={styles.cartModal__previewModeDot} aria-hidden="true" />
+            Preview Mode — fields are locked
+          </div>
+        )}
 
         <form
           id={QUOTE_FORM_ID}

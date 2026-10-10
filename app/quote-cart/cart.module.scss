@@ -16,6 +16,34 @@
   min-height: 100vh;
   padding-bottom: 6rem;
 }
+.cartModal__previewModeLabel {
+  position: fixed;
+  left: 41.5%;
+  top: 10px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 6px 14px;
+  background: #ffffff;                 /* white bg */
+  color: #f97316;                      /* orange text */
+  border: 1px solid #f97316;           /* thin orange border */
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  box-shadow: 0 1px 2px rgba(249, 115, 22, 0.08);
+}
+
+.cartModal__previewModeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+}
 /* =========================================================
    Refresh states — shared by CartHero and Items in cart
    ========================================================= */
@@ -25,26 +53,22 @@
   cursor: progress;
   opacity: 0.75;
 }
-
-/* The spinner itself. Used in the hero button and the list header. */
 .spinner {
   display: inline-block;
-  width: 1em;
-  height: 1em;
-  margin-right: 0.5em;
-  vertical-align: -0.15em;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(205, 121, 19, 0.2); /* Faint version of #cd7913 */
+  border-top-color: #cd7913;                 /* Solid brand color */
   border-radius: 50%;
-  animation: cartHeroSpin 0.7s linear infinite;
+  animation: spin 0.8s linear infinite;
+  vertical-align: middle;
 }
 
-@keyframes cartHeroSpin {
+@keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
-
 /* "Refreshing cart…" inline label in the Items in cart header */
 .cartItems__refreshing {
   display: inline-flex;
@@ -721,7 +745,12 @@
       border-color: rgba(176, 0, 32, 0.2);
     }
   }
-
+  &__perunit{
+    font-size: 0.8rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 1.5rem;
+  }
   /* ───────── Sub-items ───────── */
   &__subs {
     list-style: none;

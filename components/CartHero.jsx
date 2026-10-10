@@ -10,6 +10,14 @@ import Link from "next/link";
  * Hero section for the cart page. Displays a summary of the user's selection
  * and provides primary actions.
  *
+ * Refresh flow:
+ *   1. User clicks "⟳ Refresh Items" (only rendered when cart is empty).
+ *   2. CartHero calls `onRefreshItems()` (fire-and-forget).
+ *   3. Parent sets `refreshing = true`, awaits its async work (~0.5s),
+ *      then sets `refreshing = false`.
+ *   4. Parent passes the SAME `refreshing` flag into <EmptyCart /> so the
+ *      spinner appears inside the white "Your cart is empty" box below.
+ *
  * @param {Object}   props
  * @param {Object}   props.styles           - CSS module class names.
  * @param {number}   props.cartLength       - Number of distinct line items.
@@ -20,7 +28,8 @@ import Link from "next/link";
  * @param {Function} [props.onRefreshItems] - Async callback to refresh the cart.
  * @param {boolean}  [props.refreshing]     - Controlled loading state.
  *                                            Owned by the parent so it can be
- *                                            shared with other sections.
+ *                                            shared with other sections
+ *                                            (e.g. EmptyCart).
  */
 export default function CartHero({
   styles,
@@ -43,6 +52,8 @@ export default function CartHero({
       return;
     }
     // Parent owns the loading lifecycle; fire-and-forget here.
+    // The parent will flip `refreshing` to true, then pass it to <EmptyCart />
+    // so the spinner renders inside the white "Your cart is empty" box.
     onRefreshItems();
   }, [refreshing, onRefreshItems]);
 
@@ -84,26 +95,31 @@ export default function CartHero({
               + Add Items
             </button>
 
-            <button
-              type="button"
-              className={`${styles.btn} ${styles["btn--ghost"]} ${
-                refreshing ? styles["btn--loading"] : ""
-              }`}
-              onClick={handleRefresh}
-              disabled={refreshing}
-              aria-busy={refreshing}
-              aria-live="polite"
-              aria-label={refreshing ? "Refreshing items…" : "Refresh items"}
-            >
-              {refreshing ? (
-                <>
-                  <span className={styles.spinner} aria-hidden="true" />
-                  Refreshing…
-                </>
-              ) : (
-                "⟳ Refresh Items"
-              )}
-            </button>
+            {/* Refresh button only shown when cart is empty.
+                It triggers the parent's refresh, which then feeds the same
+                `refreshing` flag into <EmptyCart /> below. */}
+            {!hasItems && (
+              <button
+                type="button"
+                className={`${styles.btn} ${styles["btn--ghost"]} ${
+                  refreshing ? styles["btn--loading"] : ""
+                }`}
+                onClick={handleRefresh}
+                disabled={refreshing}
+                aria-busy={refreshing}
+                aria-live="polite"
+                aria-label={refreshing ? "Refreshing items…" : "Refresh items"}
+              >
+                {refreshing ? (
+                  <>
+                    <span className={styles.spinner} aria-hidden="true" />
+                    Refreshing…
+                  </>
+                ) : (
+                  "⟳ Refresh Items"
+                )}
+              </button>
+            )}
 
             {hasItems && (
               <button

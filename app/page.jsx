@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import "./amc.scss";
 import AMCNavbar from "@/components/Navbar/Navbar.jsx";
@@ -254,7 +254,6 @@ function CatalogBody({
           <div className={styles.catalogSelected__head}>
             <strong>Selected ({selectedLines.length})</strong>
             <div className={styles.catalogSelected__headRight}>
-            
               {onClearAll && (
                 <button type="button" onClick={onClearAll}>
                   Clear all
@@ -272,9 +271,7 @@ function CatalogBody({
                     <strong title={line.item_name || line.item_code}>
                       {line.item_name || line.item_code}
                     </strong>
-                   
                   </div>
-                 
                 </li>
               );
             })}
@@ -334,7 +331,6 @@ function CatalogBody({
                     {it.item_code} · {it.uom || "Nos"}
                   </span>
                 </div>
-               
 
                 {added ? (
                   <button
@@ -389,6 +385,9 @@ export default function Page() {
 
   const [toast, setToast] = useState("");
 
+  // Ref to track if we've captured the original overflow
+  const originalOverflowRef = useRef(null);
+
   const handleOpenAddModal = useCallback(() => {
     if (!isUserLoggedIn()) {
       const redirectTo = encodeURIComponent(
@@ -399,6 +398,22 @@ export default function Page() {
     }
     setAddOpen(true);
   }, [router]);
+
+  // ── FIX: Clean up overflow on mount and unmount ──
+  // This handles the case where navigation from an empty cart leaves
+  // `overflow: hidden` on the body
+  useEffect(() => {
+    // On mount: store current overflow and reset to auto
+    // This ensures any leftover `overflow: hidden` from a previous
+    // page/component is cleared
+    originalOverflowRef.current = document.body.style.overflow;
+    document.body.style.overflow = "auto";
+
+    return () => {
+      // On unmount: restore the original overflow
+      document.body.style.overflow = originalOverflowRef.current || "";
+    };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -479,13 +494,34 @@ export default function Page() {
     fetchAmcTypes();
   }, []);
 
+  // ── FIX: Improved overflow management for modals ──
+  // Only lock scroll when a modal is open, and properly restore
   useEffect(() => {
     if (!addOpen && !lineAddOpen) return;
-    const original = document.body.style.overflow;
+
+    // Store the current overflow before locking
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
     return () => {
-      document.body.style.overflow = original;
+      // Restore only if we're still the ones who locked it
+      // (prevents race conditions with other components)
+      document.body.style.overflow = previousOverflow || "auto";
     };
+  }, [addOpen, lineAddOpen]);
+
+  // ── FIX: Force reset overflow when both modals are closed ──
+  // This is a safety net in case the cleanup above doesn't fire
+  useEffect(() => {
+    if (!addOpen && !lineAddOpen) {
+      // Small delay to let any navigation/transition complete
+      const timer = setTimeout(() => {
+        if (document.body.style.overflow === "hidden") {
+          document.body.style.overflow = "auto";
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
   }, [addOpen, lineAddOpen]);
 
   useEffect(() => {
@@ -602,7 +638,6 @@ export default function Page() {
         removeFromCart(line.item_code);
       }
     });
-    // fallback in case removeFromCart didn't clear everything
     localStorage.setItem("amc-cart", JSON.stringify([]));
     window.dispatchEvent(new Event("amc-cart-updated"));
     setCart(getCart());
