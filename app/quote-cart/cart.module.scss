@@ -11,12 +11,62 @@
   --bg: #f7f8f7;
   --card: #ffffff;
   --danger: #b00020;
-
+  // z-index: 9999;
   background: var(--bg);
   min-height: 100vh;
   padding-bottom: 6rem;
 }
+/* =========================================================
+   Refresh states — shared by CartHero and Items in cart
+   ========================================================= */
 
+/* Hero refresh button: loading modifier */
+.btn--loading {
+  cursor: progress;
+  opacity: 0.75;
+}
+
+/* The spinner itself. Used in the hero button and the list header. */
+.spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  margin-right: 0.5em;
+  vertical-align: -0.15em;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: cartHeroSpin 0.7s linear infinite;
+}
+
+@keyframes cartHeroSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* "Refreshing cart…" inline label in the Items in cart header */
+.cartItems__refreshing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  color: #8a5a1c; /* matches amber accent */
+  font-weight: 500;
+}
+
+/* The list dims and blocks clicks while refreshing */
+.cartList--refreshing {
+  opacity: 0.55;
+  transition: opacity 150ms ease-out;
+  pointer-events: none;
+}
+
+/* Accessibility: respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
 /* =========================================================
    HERO
    ========================================================= */
@@ -3212,7 +3262,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 4px 0 16px;
+  padding: 1rem 0;
 }
 
 .catalogDropdown {
@@ -3538,4 +3588,137 @@
       justify-content: space-between;
     }
   }
+}
+.cartModal__previewOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 1rem;
+}
+
+.cartModal__previewDialog {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 640px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+
+  .cartModal__previewHead h3 {
+    margin: 0 0 .75rem;
+  }
+
+  .cartModal__previewBody section {
+    margin-bottom: 1rem;
+  }
+
+  .cartModal__previewBody h4 {
+    margin: 0 0 .35rem;
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #cd7913;
+  }
+
+  .cartModal__previewBody p {
+    margin: 0;
+    font-size: .9rem;
+    color: #333;
+  }
+
+  .cartModal__previewConfirmed {
+    margin: .75rem 0 0;
+    padding: .6rem .8rem;
+    background: #e8f5ec;
+    color: #1d7a3a;
+    border-radius: 8px;
+    font-size: .9rem;
+  }
+
+  .btn--preview {
+    color: #d77913;
+    background: #fffefe;
+    border-color: var(--line);
+    /* border: 1px solid #dfdfdf; */
+    // background: #eef1f6; color: #23304a; border: 1px solid #d5dbe6;
+    // background: rgba(0, 0, 0, 0.55);
+  }
+
+  .cartModal__previewBody h4 {
+    margin: 0 0 .35rem;
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #cd7913;
+
+  }
+
+}
+
+.cartModal__panel {
+  outline: none;
+}
+
+.cartModal__previewDialog {
+  outline: none;
+}
+
+.cartModal__previewOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  padding: 1rem;
+}
+
+.cartModal__previewDialog {
+  background: #fff;
+  border-radius: 12px;
+  max-width: 640px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.5rem;
+}
+
+.cartModal__previewHead h3 {
+  margin: 0 0 .75rem;
+}
+
+.cartModal__previewBody section {
+  margin-bottom: 1rem;
+}
+
+.cartModal__previewBody h4 {
+   margin: 0 0 .35rem;
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #cd7913;
+}
+
+.cartModal__previewConfirmed {
+  margin: .75rem 0 0;
+  padding: .6rem .8rem;
+  background: #e8f5ec;
+  color: #1d7a3a;
+  border-radius: 8px;
+  font-size: .9rem;
+}
+
+.btn--preview {
+  color: #d77913;
+  background: #fffefe;
+  border-color: var(--line);
 }

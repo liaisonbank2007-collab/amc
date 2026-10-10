@@ -1,9 +1,27 @@
 // components/CartHero.jsx
 "use client";
 
-import React from "react";
+import React, { useCallback } from "react";
 import Link from "next/link";
 
+/**
+ * CartHero
+ *
+ * Hero section for the cart page. Displays a summary of the user's selection
+ * and provides primary actions.
+ *
+ * @param {Object}   props
+ * @param {Object}   props.styles           - CSS module class names.
+ * @param {number}   props.cartLength       - Number of distinct line items.
+ * @param {number}   props.totalVisits      - Total number of visits.
+ * @param {number}   props.totalUnits       - Total number of units.
+ * @param {Function} props.onAddItems       - Callback to add items.
+ * @param {Function} props.onRequestQuote   - Callback to request a quote.
+ * @param {Function} [props.onRefreshItems] - Async callback to refresh the cart.
+ * @param {boolean}  [props.refreshing]     - Controlled loading state.
+ *                                            Owned by the parent so it can be
+ *                                            shared with other sections.
+ */
 export default function CartHero({
   styles,
   cartLength,
@@ -11,27 +29,43 @@ export default function CartHero({
   totalUnits,
   onAddItems,
   onRequestQuote,
+  onRefreshItems,
+  refreshing = false,
 }) {
+  const handleRefresh = useCallback(() => {
+    if (refreshing) return;
+    if (typeof onRefreshItems !== "function") {
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(
+          "[CartHero] onRefreshItems was not provided; refresh is a no-op."
+        );
+      }
+      return;
+    }
+    // Parent owns the loading lifecycle; fire-and-forget here.
+    onRefreshItems();
+  }, [refreshing, onRefreshItems]);
+
+  const hasItems = cartLength > 0;
+
+  const summaryText = hasItems
+    ? `${cartLength} line${cartLength > 1 ? "s" : ""} · ${totalVisits} visit${
+        totalVisits > 1 ? "s" : ""
+      } · ${totalUnits} unit${totalUnits > 1 ? "s" : ""} ready to be quoted.`
+    : "Your cart is empty. Add AMC services to start building your request.";
+
   return (
     <section className={styles.cartHero}>
       <div className={styles.cartHero__inner}>
         <div className={styles.cartHero__left}>
           <span className={styles.cartHero__eyebrow}>YOUR SELECTION</span>
+
           <h1>
             Review your
             <span> maintenance request.</span>
           </h1>
-          <p>
-            {cartLength === 0
-              ? "Your cart is empty. Add AMC services to start building your request."
-              : `${cartLength} line${
-                  cartLength > 1 ? "s" : ""
-                } · ${totalVisits} visit${
-                  totalVisits > 1 ? "s" : ""
-                } · ${totalUnits} unit${
-                  totalUnits > 1 ? "s" : ""
-                } ready to be quoted.`}
-          </p>
+
+          <p>{summaryText}</p>
 
           <div className={styles.cartHero__actions}>
             <Link
@@ -40,18 +74,43 @@ export default function CartHero({
             >
               ← Continue Browsing
             </Link>
+
             <button
               type="button"
               className={`${styles.btn} ${styles["btn--ghost"]}`}
               onClick={onAddItems}
+              disabled={refreshing}
             >
               + Add Items
             </button>
-            {cartLength > 0 && (
+
+            <button
+              type="button"
+              className={`${styles.btn} ${styles["btn--ghost"]} ${
+                refreshing ? styles["btn--loading"] : ""
+              }`}
+              onClick={handleRefresh}
+              disabled={refreshing}
+              aria-busy={refreshing}
+              aria-live="polite"
+              aria-label={refreshing ? "Refreshing items…" : "Refresh items"}
+            >
+              {refreshing ? (
+                <>
+                  <span className={styles.spinner} aria-hidden="true" />
+                  Refreshing…
+                </>
+              ) : (
+                "⟳ Refresh Items"
+              )}
+            </button>
+
+            {hasItems && (
               <button
                 type="button"
                 className={`${styles.btn} ${styles["btn--primary"]}`}
                 onClick={onRequestQuote}
+                disabled={refreshing}
               >
                 Request Quote for All
                 <span>↗</span>
@@ -68,7 +127,9 @@ export default function CartHero({
               </span>
               <span className={styles.cartHero__badgeLabel}>visits</span>
             </div>
+
             <div className={styles.cartHero__badgeDivider} />
+
             <div className={styles.cartHero__badgeRow}>
               <span className={styles.cartHero__badgeNum}>
                 {String(totalUnits).padStart(2, "0")}
