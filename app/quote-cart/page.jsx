@@ -1,18 +1,15 @@
 // app/quote-cart/page.jsx
 "use client";
 
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
+
 import AMCNavbar from "@/components/Navbar/Navbar.jsx";
 import { addToCart, appendToCartItem, removeSubItem } from "@/lib/cart";
 import styles from "./cart.module.scss";
 
-import { inr, prettyName } from "../../lib/format";
-import {
-  hasUnitControl,
-  hasVisitControl,
-} from "../../lib/visibility";
+import { hasUnitControl, hasVisitControl } from "../../lib/visibility";
 import { computeItemAmount } from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
@@ -29,6 +26,16 @@ import QuoteModal from "../../components/modals/QuoteModal";
 
 const API_URL = "/api/frappe/get_amc_items";
 const QUOTE_API = "/api/method/create_amc_quotation";
+const CART_STORAGE_KEY = "amc_cart";
+
+function readRawCart() {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(CART_STORAGE_KEY) || "[]");
+  } catch {
+    return [];
+  }
+}
 
 export default function QuoteCartPage() {
   const {
@@ -64,6 +71,7 @@ export default function QuoteCartPage() {
     price_list: "Standard Selling",
     notes: "",
   });
+
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdQuote, setCreatedQuote] = useState(null);
@@ -82,19 +90,33 @@ export default function QuoteCartPage() {
   const [search, setSearch] = useState("");
   const [activeTypes, setActiveTypes] = useState([]);
 
+  // ★ NEW: shared refresh state for hero + list
+  const [refreshing, setRefreshing] = useState(false);
+
   const showToast = useCallback((msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 1800);
   }, []);
 
-  useEffect(() => {
-    if (!quoteOpen && !addOpen && !lineAddOpen) return;
-    const original = document.body.style.overflow;
+useEffect(() => {
+  const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
+
+  // Capture current value so we can restore it on cleanup
+  const original = document.body.style.overflow;
+
+  if (anyModalOpen) {
     document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = original;
-    };
-  }, [quoteOpen, addOpen, lineAddOpen]);
+  } else {
+    // No modal open → make sure the body is scrollable again.
+    document.body.style.overflow = "";
+  }
+
+  return () => {
+    // On dependency change or unmount, restore the value that was in
+    // place before this effect ran.
+    document.body.style.overflow = original;
+  };
+}, [quoteOpen, addOpen, lineAddOpen]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -107,10 +129,10 @@ export default function QuoteCartPage() {
     return () => window.removeEventListener("keydown", onKey);
   }, [quoteOpen, addOpen, lineAddOpen, submitting]);
 
-  const shouldFetch = (addOpen || lineAddOpen) && catalog.length === 0;
+  const shouldFetchCatalog = (addOpen || lineAddOpen) && catalog.length === 0;
 
   useEffect(() => {
-    if (!shouldFetch) return;
+    if (!shouldFetchCatalog) return;
     let cancelled = false;
     setCatalogLoading(true);
     setCatalogError("");
@@ -121,7 +143,7 @@ export default function QuoteCartPage() {
         setCatalog(data?.message?.items || []);
       })
       .catch((err) => {
-        console.error(err);
+        console.error("[QuoteCartPage] catalog fetch failed:", err);
         if (!cancelled) setCatalogError("Could not load items. Please retry.");
       })
       .finally(() => {
@@ -130,11 +152,11 @@ export default function QuoteCartPage() {
     return () => {
       cancelled = true;
     };
-  }, [shouldFetch]);
+  }, [shouldFetchCatalog]);
 
   const handleRemove = useCallback(
-    (item_code) => {
-      removeItem(item_code);
+    (itemCode) => {
+      removeItem(itemCode);
       showToast("Item removed");
     },
     [removeItem, showToast]
@@ -163,11 +185,13 @@ export default function QuoteCartPage() {
         units: 1,
       });
       refreshCart();
-      const refreshed = getCart().find(
+      const refreshed = readRawCart().find(
         (c) => c.item_code === lineAddParent.item_code
       );
       if (refreshed) setLineAddParent(refreshed);
-      showToast(`Added to "${lineAddParent.item_name || lineAddParent.item_code}"`);
+      showToast(
+        `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
+      );
     },
     [lineAddParent, refreshCart, showToast]
   );
@@ -176,22 +200,33 @@ export default function QuoteCartPage() {
     (parentCode, subCode) => {
       removeSubItem(parentCode, subCode);
       refreshCart();
-      const refreshed = getCart().find((c) => c.item_code === parentCode);
+      const refreshed = readRawCart().find(
+        (c) => c.item_code === parentCode
+      );
       if (refreshed) setLineAddParent(refreshed);
       showToast("Sub-item removed");
     },
     [refreshCart, showToast]
   );
 
-  // Need getCart for refreshed lookups
-  const getCart = useCallback(() => {
-    if (typeof window === "undefined") return [];
+  // ★ UPDATED: parent now owns the refresh lifecycle + min-visible delay
+  const handleRefreshItems = useCallback(async () => {
+    if (refreshing) return;
+
+    const MIN_VISIBLE_MS = 400;
+    const startedAt = Date.now();
+
+    setRefreshing(true);
     try {
-      return JSON.parse(localStorage.getItem("amc_cart") || "[]");
-    } catch {
-      return [];
+      refreshCart();
+    } catch (err) {
+      console.error("[QuoteCartPage] refresh failed:", err);
+    } finally {
+      const remaining = MIN_VISIBLE_MS - (Date.now() - startedAt);
+      if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+      setRefreshing(false);
     }
-  }, []);
+  }, [refreshing, refreshCart]);
 
   const {
     subtotal,
@@ -201,40 +236,32 @@ export default function QuoteCartPage() {
     totalVisits,
     totalUnits,
   } = useMemo(() => {
-    let subtotal = 0;
+    let nextSubtotal = 0;
     let payable = 0;
     let onRequest = 0;
     let visits = 0;
     let units = 0;
 
-    cart.forEach((it) => {
+    const accumulate = (it) => {
       if (hasVisitControl(it)) visits += Number(it.visits) || 1;
       if (hasUnitControl(it)) units += Number(it.units) || 1;
 
       if (it.rate && it.rate > 0) {
         const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
-        subtotal += computeItemAmount(it) * v;
+        nextSubtotal += computeItemAmount(it) * v;
         payable += 1;
       } else {
         onRequest += 1;
       }
+    };
 
-      (it.subItems || []).forEach((s) => {
-        if (hasVisitControl(s)) visits += Number(s.visits) || 1;
-        if (hasUnitControl(s)) units += Number(s.units) || 1;
-
-        if (s.rate && s.rate > 0) {
-          const v = hasVisitControl(s) ? Number(s.visits) || 1 : 1;
-          subtotal += computeItemAmount(s) * v;
-          payable += 1;
-        } else {
-          onRequest += 1;
-        }
-      });
+    cart.forEach((it) => {
+      accumulate(it);
+      (it.subItems || []).forEach(accumulate);
     });
 
     return {
-      subtotal,
+      subtotal: nextSubtotal,
       payableCount: payable,
       onRequestCount: onRequest,
       currency: cart[0]?.currency || "INR",
@@ -281,10 +308,8 @@ export default function QuoteCartPage() {
 
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
-
     setForm((f) => {
       const next = { ...f, [name]: value };
-
       if (f.sameAsSite) {
         if (name === "address") next.shipping_address = value;
         if (name === "city") next.shipping_city = value;
@@ -293,19 +318,14 @@ export default function QuoteCartPage() {
         if (name === "email") next.shipping_email = value;
         if (name === "phone") next.shipping_mobile = value;
       }
-
       return next;
     });
   }, []);
 
   const handleSameAsSiteToggle = useCallback((e) => {
     const checked = e.target.checked;
-
     setForm((f) => {
-      if (!checked) {
-        return { ...f, sameAsSite: false };
-      }
-
+      if (!checked) return { ...f, sameAsSite: false };
       return {
         ...f,
         sameAsSite: true,
@@ -321,8 +341,12 @@ export default function QuoteCartPage() {
 
   const buildQuoteItems = useCallback((lines, propertyType = "Commercial") => {
     const out = [];
-
-    const allowedCategories = ["Residential", "Commercial", "Industrial", "Other"];
+    const allowedCategories = [
+      "Residential",
+      "Commercial",
+      "Industrial",
+      "Other",
+    ];
     const safeCategory = allowedCategories.includes(propertyType)
       ? propertyType
       : "Commercial";
@@ -331,38 +355,27 @@ export default function QuoteCartPage() {
       const pushItem = (it) => {
         const showVisit = hasVisitControl(it);
         const showUnit = hasUnitControl(it);
-
         const visits = showVisit ? Number(it.visits) || 1 : 1;
         const units = showUnit ? Number(it.units) || 1 : 1;
-
-        const qty = units;
-        const custom_visit = visits;
 
         const item = {
           item_code: it.item_code,
           category: safeCategory,
           service: "AMC Charges",
-
-          amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
+          amc_type_id:
+            it.amc_type_id || it.amc_type_name || it.amc_type || "",
           amc_type: it.amc_type_name || it.amc_type || "",
-
           amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
           amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
           custom_min_amount: it.custom_min_amount || "",
           custom_unit: it.custom_unit || " ",
-
-          qty,
-          custom_visit,
-
+          qty: units,
+          custom_visit: visits,
           rate: Number(it.rate) || 0,
-
           stock_uom: it.stock_uom || it.uom || "Nos",
         };
 
-        if (it.gst_hsn_code) {
-          item.gst_hsn_code = it.gst_hsn_code;
-        }
-
+        if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
         out.push(item);
       };
 
@@ -390,25 +403,20 @@ export default function QuoteCartPage() {
           company_name: form.company_name.trim(),
           mobile: form.phone.trim(),
           email: form.email.trim(),
-
           service_address: form.address.trim(),
           city: form.city.trim(),
           state: form.state.trim(),
           pincode: form.pincode.trim(),
-
           shipping_address: (form.shipping_address || "").trim(),
           shipping_city: (form.shipping_city || "").trim(),
           shipping_state: (form.shipping_state || "").trim(),
           shipping_pincode: (form.shipping_pincode || "").trim(),
           shipping_mobile: (form.shipping_mobile || "").trim(),
           shipping_email: (form.shipping_email || "").trim(),
-
           remarks: form.notes.trim(),
           property_type: form.property_type,
-
           duration: form.duration,
           price_list: form.price_list,
-
           items: itemsPayload,
         };
 
@@ -458,7 +466,6 @@ export default function QuoteCartPage() {
         }
 
         const msg = data?.message || {};
-
         const viewUrl = buildPrintUrl(msg.print_url);
         const pdfUrl = buildPrintUrl(msg.print_url, { download: true });
 
@@ -487,7 +494,7 @@ export default function QuoteCartPage() {
 
         await showQuoteSuccessAlert(quoteInfo);
       } catch (err) {
-        console.error("Quote submit failed:", err);
+        console.error("[QuoteCartPage] quote submit failed:", err);
         Swal.fire({
           icon: "error",
           title: "Something went wrong",
@@ -546,7 +553,7 @@ export default function QuoteCartPage() {
   }, [catalog, search, activeTypes]);
 
   const inCart = useCallback(
-    (item_code) => cart.some((c) => c.item_code === item_code),
+    (itemCode) => cart.some((c) => c.item_code === itemCode),
     [cart]
   );
 
@@ -567,13 +574,15 @@ export default function QuoteCartPage() {
     <>
       <AMCNavbar />
       <main className={styles.cartPage}>
-        <CartHero
+         <CartHero
           styles={styles}
           cartLength={cart.length}
           totalVisits={totalVisits}
           totalUnits={totalUnits}
           onAddItems={() => setAddOpen(true)}
           onRequestQuote={openBulkQuote}
+          onRefreshItems={handleRefreshItems}
+          refreshing={refreshing}
         />
 
         {submitted && (
@@ -581,7 +590,11 @@ export default function QuoteCartPage() {
         )}
 
         {!submitted && cart.length === 0 && (
-          <EmptyCart styles={styles} onAddItems={() => setAddOpen(true)} />
+          <EmptyCart 
+            styles={styles} 
+            onAddItems={() => setAddOpen(true)} 
+            refreshing={refreshing} 
+          />
         )}
 
         {!submitted && cart.length > 0 && (
@@ -591,16 +604,37 @@ export default function QuoteCartPage() {
                 <div className={styles.cartItems__head}>
                   <div>
                     <h2>Items in cart</h2>
+
+                    {/* ★ Swaps to spinner while refreshing */}
                     <p className={styles.cartItems__sub}>
-                      {cart.length} line item{cart.length > 1 ? "s" : ""} ·
-                      request a quote per item or all at once
+                      {refreshing ? (
+                        <span
+                          className={styles.cartItems__refreshing}
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <span
+                            className={styles.spinner}
+                            aria-hidden="true"
+                          />
+                          Refreshing cart…
+                        </span>
+                      ) : (
+                        <>
+                          {cart.length} line item
+                          {cart.length > 1 ? "s" : ""} · request a quote per
+                          item or all at once
+                        </>
+                      )}
                     </p>
                   </div>
+
                   <div className={styles.cartItems__actions}>
                     <button
                       type="button"
                       className={styles.cartAddBtn}
                       onClick={() => setAddOpen(true)}
+                      disabled={refreshing}
                     >
                       + Add more
                     </button>
@@ -608,13 +642,20 @@ export default function QuoteCartPage() {
                       type="button"
                       className={styles.cartClearBtn}
                       onClick={handleClear}
+                      disabled={refreshing}
                     >
                       Clear all
                     </button>
                   </div>
                 </div>
 
-                <ul className={styles.cartList}>
+                {/* ★ List dims + blocks input while refreshing */}
+                <ul
+                  className={`${styles.cartList} ${
+                    refreshing ? styles["cartList--refreshing"] : ""
+                  }`}
+                  aria-busy={refreshing}
+                >
                   {cart.map((it) => (
                     <CartItem
                       key={it.item_code}

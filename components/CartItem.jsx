@@ -59,9 +59,7 @@ export default function CartItem({
               <div className={styles.cartItem__counts}>
                 {showVisit && (
                   <div className={styles.cartItem__count}>
-                    <span className={styles.cartItem__countLabel}>
-                      Visits
-                    </span>
+                    <span className={styles.cartItem__countLabel}>Visits</span>
                     <QtyStepper
                       className={styles.cartItem__qty}
                       value={it.visits || 1}
@@ -98,13 +96,13 @@ export default function CartItem({
                         parts.push(
                           `${(it.visits || 1).toLocaleString("en-IN")} visit${
                             (it.visits || 1) > 1 ? "s" : ""
-                          }`
+                          }`,
                         );
                       if (showUnit)
                         parts.push(
                           `${(it.units || 1).toLocaleString("en-IN")} unit${
                             (it.units || 1) > 1 ? "s" : ""
-                          }`
+                          }`,
                         );
                       return parts.length ? parts.join(" × ") : "Fixed";
                     })()}
@@ -114,9 +112,7 @@ export default function CartItem({
                   </span>
                 </>
               ) : (
-                <span className={styles.cartItem__onRequest}>
-                  On request
-                </span>
+                <span className={styles.cartItem__onRequest}>On request</span>
               )}
             </div>
           </div>
@@ -131,7 +127,6 @@ export default function CartItem({
             Quote
             <span>↗</span>
           </button>
-
           <button
             type="button"
             className={styles.cartItem__remove}
@@ -140,6 +135,10 @@ export default function CartItem({
           >
             Remove
           </button>
+          <p className={styles.cartItem__perunit}>
+            {it.custom_min_amount} for min <br />
+            {it.custom_unit}/{it.uom || it.stock_uom || "Nos"}
+          </p>
         </div>
       </div>
 
@@ -170,9 +169,7 @@ export default function CartItem({
 
         <div className={styles.cartItem__subtotal}>
           <span>Line total</span>
-          <strong>
-            {hasPayable ? inr(total, it.currency) : "On request"}
-          </strong>
+          <strong>{hasPayable ? inr(total, it.currency) : "On request"}</strong>
         </div>
       </div>
     </li>
