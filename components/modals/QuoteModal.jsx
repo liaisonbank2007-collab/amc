@@ -12,7 +12,7 @@ import React, {
 import Swal from "sweetalert2";
 import { inr, prettyName } from "../../lib/format";
 import { hasVisitControl, hasUnitControl } from "../../lib/visibility";
-import { computeItemAmount } from "../../lib/calculations";
+import { computeItemAmount, lineTotal } from "../../lib/calculations";
 
 const QUOTE_FORM_ID = "quote-form";
 const GUARD_COALESCE_MS = 400;
@@ -60,6 +60,61 @@ function numberToWords(num) {
   if (num % 100) result += inWords(num % 100);
 
   return result.trim();
+}
+
+/* ------------------------------------------------------------------ *
+ * Live-value resolvers — read directly from the item service list.
+ * ------------------------------------------------------------------ */
+
+function pickNumber(candidates, fallback) {
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return fallback;
+}
+
+/**
+ * "Area/Qty" column — displays the Units value from the item service list.
+ * Priority: units -> custom_units -> 1
+ */
+function resolveAreaQty(item) {
+  return pickNumber(
+    [item?.units, item?.custom_units],
+    1
+  );
+}
+
+/**
+ * "Visit" column — displays the Visits value from the item service list.
+ * Priority: visits -> custom_visit -> 1
+ */
+function resolveVisits(item) {
+  return pickNumber(
+    [item?.visits, item?.custom_visit],
+    1
+  );
+}
+
+/**
+ * Units — kept for internal use (e.g. sub-item computation fallbacks).
+ */
+function resolveUnits(item) {
+  return pickNumber([item?.units, item?.custom_units], 1);
+}
+
+/**
+ * Rate per unit — live value from the item.
+ */
+function resolveRate(item) {
+  return Number(item?.rate) || 0;
+}
+
+/**
+ * UOM label — live value from the item.
+ */
+function resolveUom(item) {
+  return item?.price_uom || item?.uom || item?.stock_uom || "Nos";
 }
 
 export default function QuoteModal({
@@ -349,53 +404,70 @@ export default function QuoteModal({
   }, []);
 
   /* ------------------------------------------------------------------ *
-   * 9. Memoised preview rows (for the form preview)
+   * 9. Memoised preview rows — uses lineTotal(item) so it matches the
+   *    cart line exactly.
    * ------------------------------------------------------------------ */
   const previewRows = useMemo(() => {
     return activeQuoteItems.map((it, idx) => {
       const showVisit = hasVisitControl(it);
       const showUnit = hasUnitControl(it);
 
+      const liveUnits = resolveAreaQty(it);
+      const liveVisits = resolveVisits(it);
+
       const parts = [];
+      if (showUnit) {
+        parts.push(`${liveUnits} unit${liveUnits > 1 ? "s" : ""}`);
+      }
       if (showVisit) {
         parts.push(
-          `${it.visits || 1} visit${(it.visits || 1) > 1 ? "s" : ""}`
+          `${liveVisits} visit${liveVisits > 1 ? "s" : ""}`
         );
       }
-      if (showUnit) {
-        parts.push(
-          `${it.units || 1} unit${(it.units || 1) > 1 ? "s" : ""}`
-        );
-      }
-      parts.push(it.uom || it.stock_uom || "Nos");
+      parts.push(resolveUom(it));
       if (it.amc_sub_type_name) parts.push(it.amc_sub_type_name);
 
+      const { total, hasPayable } = lineTotal(it);
+
       return {
-        key: `${it.item_code}-${idx}`,
-        title: prettyName(it.item_name || it.item_code),
+        key: `${it.item_code || it.item_name || "item"}-${idx}`,
+        title: prettyName(it.item_name || it.item_code || ""),
         subtitle: parts.join(" · "),
-        thumb: (it.item_name || it.item_code).slice(0, 2).toUpperCase(),
-        amount:
-          it.rate && it.rate > 0
-            ? inr(
-                computeItemAmount(it) * (showVisit ? it.visits || 1 : 1),
-                it.currency
-              )
-            : "On request",
+        thumb: (it.item_name || it.item_code || "IT")
+          .slice(0, 2)
+          .toUpperCase(),
+        amount: hasPayable ? inr(total, it.currency) : "On request",
       };
     });
   }, [activeQuoteItems]);
 
   /* ------------------------------------------------------------------ *
    * 10. Memoised Quotation Preview Data
+   *
+   * Column mapping — ALL read live from the item service list:
+   *   - "Area/Qty" column  <-- units   (real-time Units from the item)
+   *   - "Visit" column     <-- visits  (real-time Visits from the item)
+   *   - "UOM"              <-- price_uom
+   *   - "Rate"             <-- rate
+   *   - "Amount"           =  lineTotal(item).total
+   *                           (exact same value as the cart's LINE TOTAL)
    * ------------------------------------------------------------------ */
   const quotationData = useMemo(() => {
     let subtotal = 0;
 
     const items = activeQuoteItems.map((item, idx) => {
-      const qty = Number(item.custom_unit) || Number(item.qty) || 1;
-      const rate = Number(item.rate) || 0;
-      const amount = qty * rate;
+      // Area/Qty column -> Units value from the item service list
+      const areaQty = resolveAreaQty(item);
+
+      // Visit column -> Visits value from the item service list
+      const visit = resolveVisits(item);
+
+      // Rate per unit
+      const rate = resolveRate(item);
+
+      // Exact same total the cart renders for this line
+      const { total, hasPayable } = lineTotal(item);
+      const amount = hasPayable ? total : 0;
       subtotal += amount;
 
       const serviceName = item.item_name || item.item_code || "";
@@ -403,12 +475,13 @@ export default function QuoteModal({
       return {
         sr: idx + 1,
         description: serviceName,
-        subDescription: item.amc_sub_type || item.amc_type || serviceName,
-        areaQty: qty,
-        uom: item.price_uom || item.uom || item.stock_uom || "Nos",
-        visit: item.custom_visit || 1,
-        rate: rate,
-        amount: amount,
+        subDescription:
+          item.amc_sub_type || item.amc_type || serviceName,
+        areaQty,
+        uom: resolveUom(item),
+        visit,
+        rate,
+        amount,
       };
     });
 
@@ -468,14 +541,10 @@ export default function QuoteModal({
 
   /* ------------------------------------------------------------------ *
    * 11. Build table rows as an array
-   *     - Totals use colSpan to align with Rate/Amount columns
-   *     - Description column is commented out
-   *     - Footer rows moved inside the table using colSpan="7"
    * ------------------------------------------------------------------ */
   const tableBodyRows = useMemo(() => {
     const rows = [];
 
-    // Item rows
     quotationData.items.forEach((item) => {
       rows.push(
         <tr key={`item-${item.sr}`}>
@@ -487,7 +556,9 @@ export default function QuoteModal({
           <td>{item.uom}</td>
           <td>{item.visit}</td>
           <td>{inr(item.rate, quotationData.currency)}</td>
-          <td className="text-right">{inr(item.amount, quotationData.currency)}</td>
+          <td className="text-right">
+            {inr(item.amount, quotationData.currency)}
+          </td>
         </tr>
       );
     });
@@ -495,7 +566,7 @@ export default function QuoteModal({
     const totalRowClass = styles.quotationPreview__totalRow;
     const grandTotalRowClass = `${styles.quotationPreview__totalRow} ${styles["quotationPreview__totalRow--grand"]}`;
 
-    // Total row: spans 6 columns (labels align with Rate column, value in Amount column)
+    // Total row
     rows.push(
       <tr key="total-row" className={totalRowClass}>
         <td
@@ -555,13 +626,12 @@ export default function QuoteModal({
       </tr>
     );
 
-    /* ------------------------------------------------------------------ *
-     * Footer rows inside the table (as per attached image)
-     * ------------------------------------------------------------------ */
-
     // Grand Total (In Words) - full width
     rows.push(
-      <tr key="grand-total-words-row" className={styles.quotationPreview__wordsRow}>
+      <tr
+        key="grand-total-words-row"
+        className={styles.quotationPreview__wordsRow}
+      >
         <td
           colSpan="7"
           style={{
@@ -575,9 +645,12 @@ export default function QuoteModal({
       </tr>
     );
 
-    // Payment Terms and Conditions - full width header
+    // Payment Terms and Conditions - header
     rows.push(
-      <tr key="payment-terms-header-row" className={styles.quotationPreview__termsRow}>
+      <tr
+        key="payment-terms-header-row"
+        className={styles.quotationPreview__termsRow}
+      >
         <td
           colSpan="7"
           style={{
@@ -591,35 +664,18 @@ export default function QuoteModal({
       </tr>
     );
 
-    // 100% Advance text - full width indented
+    // 100% Advance text
     rows.push(
-      <tr key="payment-terms-text-row" className={styles.quotationPreview__termsRow}>
-        <td
-          colSpan="7"
-          style={{
-            textAlign: "left",
-            // paddingLeft: "3rem",
-          }}
-        >
-          100% of Advance the total order value shall be payable for confirmation of the work order.
+      <tr
+        key="payment-terms-text-row"
+        className={styles.quotationPreview__termsRow}
+      >
+        <td colSpan="7" style={{ textAlign: "left" }}>
+          100% of Advance the total order value shall be payable for
+          confirmation of the work order.
         </td>
       </tr>
     );
-
-    // NOTE row - full width
-    // rows.push(
-    //   <tr key="note-row" className={styles.quotationPreview__termsRow}>
-    //     <td
-    //       colSpan="7"
-    //       style={{
-    //         textAlign: "left",
-    //         paddingLeft: "1rem",
-    //       }}
-    //     >
-    //       <strong>NOTE:-</strong> This quotation shall remain valid for <strong>15 days</strong> from the date of issuance.
-    //     </td>
-    //   </tr>
-    // );
 
     return rows;
   }, [quotationData, styles]);
@@ -661,15 +717,6 @@ export default function QuoteModal({
           </div>
         </div>
       </div>
-
-      {/* <div className={styles.quotationPreview__metaRow}>
-        <div className={styles.quotationPreview__metaItem}>
-          <span>Contract Type:</span> {form.service_type || "AMC Charges"}
-        </div>
-        <div className={styles.quotationPreview__metaItem}>
-          <span>Category:</span> {form.property_type || "Commercial"}
-        </div>
-      </div> */}
 
       <div className={styles.quotationPreview__tableWrapper}>
         <table className={styles.quotationPreview__table}>
@@ -1093,7 +1140,8 @@ export default function QuoteModal({
                 Preview Mode
               </span>
               <span className={styles.cartModal__previewBannerSub}>
-                Fields are read-only. Click &quot;Edit Details&quot; to make changes.
+                Fields are read-only. Click &quot;Edit Details&quot; to make
+                changes.
               </span>
             </div>
           )}
