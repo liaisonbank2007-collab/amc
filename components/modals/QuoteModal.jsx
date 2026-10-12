@@ -15,12 +15,7 @@ import { hasVisitControl, hasUnitControl } from "../../lib/visibility";
 import { computeItemAmount } from "../../lib/calculations";
 
 const QUOTE_FORM_ID = "quote-form";
-
-// Coalescing window (ms) for the mousedown→focus→click burst. Well below
-// human perception, but long enough to collapse the native event cascade.
 const GUARD_COALESCE_MS = 400;
-
-// `name` attribute of the field we focus when the user confirms edit mode.
 const FIRST_EDITABLE_FIELD_NAME = "name";
 
 export default function QuoteModal({
@@ -36,43 +31,15 @@ export default function QuoteModal({
   onSubmit,
   onClose,
 }) {
-  /**
-   * View mode = every field is read-only / disabled and the "Preview
-   * Quotation" button is swapped for an "Edit Details" button.
-   *
-   * Flow:
-   *   edit  ──[Preview Quotation]──▶  view  ──[Edit Details]──▶  edit
-   *                                     │
-   *                                     └──[Submit Request]──▶ onSubmit()
-   *
-   * While in view mode, ANY attempt to edit a field triggers a single
-   * SweetAlert asking the user to confirm switching back to edit mode.
-   * On confirm, the modal scrolls to the top and focus lands on the
-   * Full Name field — with no intermediate scroll-down from SweetAlert's
-   * native focus restoration.
-   */
   const [isViewMode, setIsViewMode] = useState(false);
 
-  // Refs for focus management / scroll locking
   const panelRef = useRef(null);
   const previouslyFocusedRef = useRef(null);
-
-  // Prevent multiple SweetAlerts stacking if the user mashes a field
   const swalOpenRef = useRef(false);
-
-  // Timestamp of the last guard invocation, used to coalesce the
-  // mousedown → focus → click event burst into one popup.
   const lastGuardAtRef = useRef(0);
-
-  // Set to true when we want the next post-commit effect to move focus
-  // to the Full Name field and scroll to top. Cleared as soon as it fires.
   const shouldFocusFullNameRef = useRef(false);
-
-  // Tracks the second rAF id from the focus effect so we can cancel it
-  // on unmount.
   const raf2Ref = useRef(0);
 
-  // Stable, SSR-safe id
   const titleId = useId();
 
   /* ------------------------------------------------------------------ *
@@ -99,13 +66,13 @@ export default function QuoteModal({
   }, []);
 
   /* ------------------------------------------------------------------ *
-   * 2. Escape key handling (respects submitting + view mode + Swal)
+   * 2. Escape key handling
    * ------------------------------------------------------------------ */
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key !== "Escape") return;
       if (submitting) return;
-      if (swalOpenRef.current) return; // let Swal handle Escape itself
+      if (swalOpenRef.current) return;
 
       if (isViewMode) {
         setIsViewMode(false);
@@ -120,10 +87,6 @@ export default function QuoteModal({
 
   /* ------------------------------------------------------------------ *
    * 3. Scroll the modal panel back to the top.
-   *
-   *    Walks up the DOM to find the real scroller (in case the panel is
-   *    wrapped) and scrolls it smoothly. Falls back to instant scroll on
-   *    older browsers or when the user prefers reduced motion.
    * ------------------------------------------------------------------ */
   const scrollPanelToTop = useCallback(() => {
     const panel = panelRef.current;
@@ -163,18 +126,7 @@ export default function QuoteModal({
   }, []);
 
   /* ------------------------------------------------------------------ *
-   * 4. Post-commit effect: focus Full Name the moment edit mode is on.
-   *
-   *    Runs whenever `isViewMode` changes. We only act when it flipped
-   *    to `false` AND the confirm path asked for it via the ref flag.
-   *
-   *    The scroll + focus happen inside a DOUBLE rAF so they run AFTER
-   *    the browser's own SweetAlert restore-focus scroll (if any). Doing
-   *    the scroll earlier gets overwritten by that native scroll.
-   *
-   *    Order matters: scroll first, focus second (with preventScroll so
-   *    the browser doesn't scroll again), then re-assert the top on the
-   *    next frame to absorb any final browser nudge.
+   * 4. Post-commit effect: focus Full Name when returning to edit mode.
    * ------------------------------------------------------------------ */
   useEffect(() => {
     if (isViewMode) return;
@@ -197,10 +149,8 @@ export default function QuoteModal({
 
     const raf1 = window.requestAnimationFrame(() => {
       const raf2 = window.requestAnimationFrame(() => {
-        // 1) Scroll to top (smooth).
         scrollPanelToTop();
 
-        // 2) Focus Full Name without letting the browser scroll again.
         try {
           field.focus({ preventScroll: true });
 
@@ -220,8 +170,6 @@ export default function QuoteModal({
           }
         }
 
-        // 3) Safety net: some browsers nudge the scroll one frame after
-        //    focus. Re-assert the top.
         window.requestAnimationFrame(() => {
           scrollPanelToTop();
         });
@@ -242,21 +190,15 @@ export default function QuoteModal({
 
   /* ------------------------------------------------------------------ *
    * 5. Guard: intercept any edit attempt while in view mode.
-   *
-   *    `returnFocus: false` stops SweetAlert from restoring focus to the
-   *    element the user clicked — which is what causes the modal to
-   *    scroll down before our effect scrolls it back up.
    * ------------------------------------------------------------------ */
   const guardViewMode = useCallback(
     (e) => {
       if (!isViewMode) return false;
 
-      // Coalesce rapid-fire events (mousedown → focus → click) into one.
       const now = Date.now();
       if (now - lastGuardAtRef.current < GUARD_COALESCE_MS) return true;
       lastGuardAtRef.current = now;
 
-      // Already showing a Swal? Don't stack.
       if (swalOpenRef.current) return true;
       swalOpenRef.current = true;
 
@@ -271,18 +213,15 @@ export default function QuoteModal({
         focusCancel: true,
         allowOutsideClick: false,
         allowEscapeKey: true,
-        // 👇 Prevents the "scroll down then jump back to top" jitter.
         returnFocus: false,
         customClass: {
           container: "quote-modal-swal",
-          confirmButton: "quote-confirm-btn", // Yes button
+          confirmButton: "quote-confirm-btn",
         },
       })
         .then((result) => {
           if (!result.isConfirmed) return;
 
-          // Belt-and-braces: blur whatever SweetAlert may have focused,
-          // so no residual focus-scroll fires before our effect runs.
           if (typeof document !== "undefined") {
             const active = document.activeElement;
             if (active && typeof active.blur === "function") {
@@ -294,11 +233,7 @@ export default function QuoteModal({
             }
           }
 
-          // Ask the post-commit effect to scroll + focus Full Name.
           shouldFocusFullNameRef.current = true;
-
-          // Flip the mode. The effect handles the rest once React has
-          // committed the re-render.
           setIsViewMode(false);
         })
         .finally(() => {
@@ -311,7 +246,7 @@ export default function QuoteModal({
   );
 
   /* ------------------------------------------------------------------ *
-   * 6. Form change handlers — ignored while in view mode
+   * 6. Form change handlers
    * ------------------------------------------------------------------ */
   const handleChange = useCallback(
     (e) => {
@@ -329,22 +264,8 @@ export default function QuoteModal({
     [guardViewMode, onSameAsSiteToggle]
   );
 
-  const handleFieldInteract = useCallback(
-    (e) => {
-      guardViewMode(e);
-    },
-    [guardViewMode]
-  );
-
   /* ------------------------------------------------------------------ *
    * 7. Submit logic
-   *    - "Preview Quotation" (type=submit, data-intent="preview"):
-   *         switches the form into view mode and scrolls to top.
-   *    - "Submit Request" (type=submit, data-intent="submit"):
-   *         only enabled once in view mode; calls onSubmit.
-   *
-   *    `e.nativeEvent.submitter` is the canonical, race-free way to
-   *    determine which button triggered the submit.
    * ------------------------------------------------------------------ */
   const handleFormSubmit = useCallback(
     (e) => {
@@ -374,9 +295,6 @@ export default function QuoteModal({
 
   /* ------------------------------------------------------------------ *
    * 8. Return to edit mode via the Edit Details button.
-   *
-   *    Uses the same post-commit effect path as the Swal confirm, so
-   *    behaviour is identical: scroll to top, then focus Full Name.
    * ------------------------------------------------------------------ */
   const handleEditDetails = useCallback((e) => {
     e?.preventDefault?.();
@@ -505,21 +423,11 @@ export default function QuoteModal({
           ))}
         </div>
 
-        {/* -------- Fixed Preview Mode label (only in view mode) -------- */}
-        {isViewMode && (
-          <div
-            className={styles.cartModal__previewModeLabel}
-            role="status"
-            aria-live="polite"
-          >
-            <span className={styles.cartModal__previewModeDot} aria-hidden="true" />
-            Preview Mode — fields are locked
-          </div>
-        )}
-
         <form
           id={QUOTE_FORM_ID}
-          className={styles.cartModal__form}
+          className={`${styles.cartModal__form} ${
+            isViewMode ? styles["cartModal__form--preview"] : ""
+          }`}
           onSubmit={handleFormSubmit}
           noValidate={false}
           data-view-mode={isViewMode ? "true" : "false"}
@@ -530,156 +438,185 @@ export default function QuoteModal({
             <div className={styles.cartModal__grid}>
               <label>
                 <span>Full Name *</span>
-                <input
-                  type="text"
-                  name="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="e.g. Ananya Sharma"
-                  autoComplete="name"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.name || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="name"
+                    value={form.name}
+                    onChange={handleChange}
+                    placeholder="e.g. Ananya Sharma"
+                    autoComplete="name"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Company Name</span>
-                <input
-                  type="text"
-                  name="company_name"
-                  value={form.company_name}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="e.g. ABC Technologies Pvt Ltd"
-                  autoComplete="organization"
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.company_name || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="company_name"
+                    value={form.company_name}
+                    onChange={handleChange}
+                    placeholder="e.g. ABC Technologies Pvt Ltd"
+                    autoComplete="organization"
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Phone *</span>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={form.phone}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="+91 98765 43210"
-                  autoComplete="tel"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.phone || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={form.phone}
+                    onChange={handleChange}
+                    placeholder="+91 98765 43210"
+                    autoComplete="tel"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Email *</span>
-                <input
-                  type="email"
-                  name="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.email || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="email"
+                    name="email"
+                    value={form.email}
+                    onChange={handleChange}
+                    placeholder="you@company.com"
+                    autoComplete="email"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
             </div>
           </div>
 
           {/* -------------------- Billing details -------------------- */}
           <div className={styles.formSection}>
-            <span className={styles.formSection__label}>Billing details</span>
+            <span className={styles.formSection__label}>
+              Billing details
+            </span>
             <div className={styles.cartModal__grid}>
               <label className={styles.cartModal__full}>
                 <span>Service Address *</span>
-                <textarea
-                  name="address"
-                  rows="2"
-                  value={form.address}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="Building, street, area"
-                  autoComplete="street-address"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.address || "NA"}
+                  </div>
+                ) : (
+                  <textarea
+                    name="address"
+                    rows="2"
+                    value={form.address}
+                    onChange={handleChange}
+                    placeholder="Building, street, area"
+                    autoComplete="street-address"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>City *</span>
-                <input
-                  type="text"
-                  name="city"
-                  value={form.city}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="Mumbai"
-                  autoComplete="address-level2"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.city || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="city"
+                    value={form.city}
+                    onChange={handleChange}
+                    placeholder="Mumbai"
+                    autoComplete="address-level2"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>State *</span>
-                <input
-                  type="text"
-                  name="state"
-                  value={form.state}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="Maharashtra"
-                  autoComplete="address-level1"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.state || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="state"
+                    value={form.state}
+                    onChange={handleChange}
+                    placeholder="Maharashtra"
+                    autoComplete="address-level1"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Pincode *</span>
-                <input
-                  type="text"
-                  name="pincode"
-                  value={form.pincode}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="400069"
-                  inputMode="numeric"
-                  autoComplete="postal-code"
-                  pattern="[0-9]{4,10}"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.pincode || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="pincode"
+                    value={form.pincode}
+                    onChange={handleChange}
+                    placeholder="400069"
+                    inputMode="numeric"
+                    autoComplete="postal-code"
+                    pattern="[0-9]{4,10}"
+                    required
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Property Type</span>
-                <select
-                  name="property_type"
-                  value={form.property_type}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  disabled={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                >
-                  <option value="Commercial">Commercial</option>
-                  <option value="Residential">Residential</option>
-                  <option value="Industrial">Industrial</option>
-                  <option value="Institutional">Institutional</option>
-                </select>
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.property_type || "NA"}
+                  </div>
+                ) : (
+                  <select
+                    name="property_type"
+                    value={form.property_type}
+                    onChange={handleChange}
+                    suppressHydrationWarning
+                  >
+                    <option value="Commercial">Commercial</option>
+                    <option value="Residential">Residential</option>
+                    <option value="Industrial">Industrial</option>
+                    <option value="Institutional">Institutional</option>
+                  </select>
+                )}
               </label>
             </div>
           </div>
@@ -695,7 +632,6 @@ export default function QuoteModal({
                   type="checkbox"
                   checked={form.sameAsSite}
                   onChange={handleSameAsSiteToggle}
-                  onMouseDown={handleFieldInteract}
                   disabled={isViewMode}
                   aria-readonly={isViewMode}
                   suppressHydrationWarning
@@ -727,107 +663,125 @@ export default function QuoteModal({
             <div className={styles.cartModal__grid}>
               <label className={styles.cartModal__full}>
                 <span>Shipping Address *</span>
-                <textarea
-                  name="shipping_address"
-                  rows="2"
-                  value={form.shipping_address}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="Building, street, area"
-                  autoComplete="shipping street-address"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  disabled={shippingLocked}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.shipping_address || "NA"}
+                  </div>
+                ) : (
+                  <textarea
+                    name="shipping_address"
+                    rows="2"
+                    value={form.shipping_address}
+                    onChange={handleChange}
+                    placeholder="Building, street, area"
+                    autoComplete="shipping street-address"
+                    required
+                    disabled={shippingLocked}
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Shipping City *</span>
-                <input
-                  type="text"
-                  name="shipping_city"
-                  value={form.shipping_city}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="Mumbai"
-                  autoComplete="shipping address-level2"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  disabled={shippingLocked}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.shipping_city || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="shipping_city"
+                    value={form.shipping_city}
+                    onChange={handleChange}
+                    placeholder="Mumbai"
+                    autoComplete="shipping address-level2"
+                    required
+                    disabled={shippingLocked}
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Shipping Email *</span>
-                <input
-                  type="email"
-                  name="shipping_email"
-                  value={form.shipping_email}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="you@company.com"
-                  autoComplete="shipping email"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  disabled={shippingLocked}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.shipping_email || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="email"
+                    name="shipping_email"
+                    value={form.shipping_email}
+                    onChange={handleChange}
+                    placeholder="you@company.com"
+                    autoComplete="shipping email"
+                    required
+                    disabled={shippingLocked}
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Shipping Mobile *</span>
-                <input
-                  type="tel"
-                  name="shipping_mobile"
-                  value={form.shipping_mobile}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="+91 98765 43210"
-                  autoComplete="shipping tel"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  disabled={shippingLocked}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.shipping_mobile || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="tel"
+                    name="shipping_mobile"
+                    value={form.shipping_mobile}
+                    onChange={handleChange}
+                    placeholder="+91 98765 43210"
+                    autoComplete="shipping tel"
+                    required
+                    disabled={shippingLocked}
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Shipping State *</span>
-                <input
-                  type="text"
-                  name="shipping_state"
-                  value={form.shipping_state}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="Maharashtra"
-                  autoComplete="shipping address-level1"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  disabled={shippingLocked}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.shipping_state || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="shipping_state"
+                    value={form.shipping_state}
+                    onChange={handleChange}
+                    placeholder="Maharashtra"
+                    autoComplete="shipping address-level1"
+                    required
+                    disabled={shippingLocked}
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
               <label>
                 <span>Shipping Pincode *</span>
-                <input
-                  type="text"
-                  name="shipping_pincode"
-                  value={form.shipping_pincode}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="400069"
-                  inputMode="numeric"
-                  autoComplete="shipping postal-code"
-                  pattern="[0-9]{4,10}"
-                  required
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  disabled={shippingLocked}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.shipping_pincode || "NA"}
+                  </div>
+                ) : (
+                  <input
+                    type="text"
+                    name="shipping_pincode"
+                    value={form.shipping_pincode}
+                    onChange={handleChange}
+                    placeholder="400069"
+                    inputMode="numeric"
+                    autoComplete="shipping postal-code"
+                    pattern="[0-9]{4,10}"
+                    required
+                    disabled={shippingLocked}
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
             </div>
           </div>
@@ -840,33 +794,39 @@ export default function QuoteModal({
             <div className={styles.cartModal__grid}>
               <label>
                 <span>Duration</span>
-                <select
-                  name="duration"
-                  value={form.duration}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  disabled={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                >
-                  <option value="3 Months">3 Months</option>
-                  <option value="6 Months">6 Months</option>
-                  <option value="12 Months">12 Months</option>
-                </select>
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.duration || "NA"}
+                  </div>
+                ) : (
+                  <select
+                    name="duration"
+                    value={form.duration}
+                    onChange={handleChange}
+                    suppressHydrationWarning
+                  >
+                    <option value="3 Months">3 Months</option>
+                    <option value="6 Months">6 Months</option>
+                    <option value="12 Months">12 Months</option>
+                  </select>
+                )}
               </label>
               <label className={styles.cartModal__full}>
                 <span>Remarks (optional)</span>
-                <textarea
-                  name="notes"
-                  rows="2"
-                  value={form.notes}
-                  onChange={handleChange}
-                  onMouseDown={handleFieldInteract}
-                  placeholder="AMC services required for office premises…"
-                  readOnly={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
+                {isViewMode ? (
+                  <div className={styles.cartModal__plainValue}>
+                    {form.notes || "NA"}
+                  </div>
+                ) : (
+                  <textarea
+                    name="notes"
+                    rows="2"
+                    value={form.notes}
+                    onChange={handleChange}
+                    placeholder="AMC services required for office premises…"
+                    suppressHydrationWarning
+                  />
+                )}
               </label>
             </div>
           </div>
@@ -889,17 +849,6 @@ export default function QuoteModal({
             </div>
           </div>
 
-          {isViewMode && (
-            <div
-              className={styles.cartModal__previewConfirmed}
-              role="status"
-              aria-live="polite"
-            >
-              ✓ Preview confirmed. You can now submit your request, or click
-              “Edit Details” to make changes.
-            </div>
-          )}
-
           {/* -------------------- Actions -------------------- */}
           <div className={styles.cartModal__actions}>
             <button
@@ -912,14 +861,25 @@ export default function QuoteModal({
             </button>
 
             {isViewMode ? (
-              <button
-                type="button"
-                className={`${styles.btn} ${styles["btn--preview"]}`}
-                onClick={handleEditDetails}
-                disabled={submitting}
-              >
-                Edit Details
-              </button>
+              <>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles["btn--preview"]}`}
+                  onClick={handleEditDetails}
+                  disabled={submitting}
+                >
+                  Edit Details
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.btn} ${styles["btn--primary"]}`}
+                  onClick={onSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? "Submitting…" : "Create Quote"}
+                  {!submitting && <span>↗</span>}
+                </button>
+              </>
             ) : (
               <button
                 type="submit"
@@ -931,23 +891,6 @@ export default function QuoteModal({
                 Preview Quotation
               </button>
             )}
-
-            <button
-              type="submit"
-              form={QUOTE_FORM_ID}
-              data-intent="submit"
-              className={`${styles.btn} ${styles["btn--primary"]}`}
-              disabled={submitting || !isViewMode}
-              aria-disabled={submitting || !isViewMode}
-              title={
-                !isViewMode
-                  ? "Please preview and confirm before submitting"
-                  : undefined
-              }
-            >
-              {submitting ? "Submitting…" : "Submit Request"}
-              {!submitting && <span>↗</span>}
-            </button>
           </div>
         </form>
       </div>

@@ -16,6 +16,21 @@
   min-height: 100vh;
   padding-bottom: 6rem;
 }
+/* Add to your cartModal CSS module */
+
+/* Plain read-only text value displayed in preview mode */
+.cartModal__plainValue {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0; /* Minimal spacing to keep label-value relationship tight */
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1f2937; /* Dark, readable text */
+  line-height: 1.5;
+  white-space: pre-wrap; /* Preserve line breaks for addresses */
+  word-break: break-word;
+  min-height: 1.5rem; /* Avoid layout shifts if the value is empty */
+}
 .cartModal__previewModeLabel {
   position: fixed;
   left: 41.5%;
