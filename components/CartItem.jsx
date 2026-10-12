@@ -8,7 +8,13 @@ import {
   hasUnitControl,
   hasQtyControls,
 } from "../lib/visibility";
-import { lineTotal } from "../lib/calculations";
+import {
+  lineTotal,
+  DURATION_OPTIONS,
+  getDiscountForDuration,
+  getDurationOption,
+  durationValueToMonths,
+} from "../lib/calculations";
 import QtyStepper from "./QtyStepper";
 import SubItem from "./SubItem";
 
@@ -19,6 +25,7 @@ export default function CartItem({
   onUnitsChange,
   onSubVisitsChange,
   onSubUnitsChange,
+  onDurationChange,
   onRemove,
   onRemoveSub,
   onQuote,
@@ -26,10 +33,20 @@ export default function CartItem({
 }) {
   const displayName = it.item_name || it.item_code;
   const subItems = it.subItems || [];
-  const { total, hasPayable } = lineTotal(it);
+  const currentDuration = it.custom_duration_months || "12 Months";
+  const { subtotal, discountPercentage, discountAmount, total, hasPayable } =
+    lineTotal(it, currentDuration);
   const subCount = subItems.length;
   const showVisit = hasVisitControl(it);
   const showUnit = hasUnitControl(it);
+  const durationOption = getDurationOption(currentDuration);
+
+  const handleDurationChange = (e) => {
+    const newDuration = e.target.value;
+    if (onDurationChange) {
+      onDurationChange(it.item_code, newDuration);
+    }
+  };
 
   return (
     <li className={styles.cartItem}>
@@ -86,27 +103,56 @@ export default function CartItem({
               </div>
             )}
 
+            {/* Duration selector with discount */}
+            <div className={styles.cartItem__duration}>
+              <span className={styles.cartItem__countLabel}>
+                Duration
+                {discountPercentage > 0 && (
+                  <em className={styles.cartItem__discountBadge}>
+                    {discountPercentage}% off
+                  </em>
+                )}
+              </span>
+              <select
+                className={styles.cartItem__durationSelect}
+                value={currentDuration}
+                onChange={handleDurationChange}
+                aria-label="Select AMC duration"
+              >
+                {DURATION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label} ({opt.discount}% off)
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className={styles.cartItem__price}>
               {hasPayable ? (
                 <>
-                  <span className={styles.cartItem__rate}>
-                    {(() => {
-                      const parts = [];
-                      if (showVisit)
-                        parts.push(
-                          `${(it.visits || 1).toLocaleString("en-IN")} visit${
-                            (it.visits || 1) > 1 ? "s" : ""
-                          }`,
-                        );
-                      if (showUnit)
-                        parts.push(
-                          `${(it.units || 1).toLocaleString("en-IN")} unit${
-                            (it.units || 1) > 1 ? "s" : ""
-                          }`,
-                        );
-                      return parts.length ? parts.join(" × ") : "Fixed";
-                    })()}
-                  </span>
+                 <span className={styles.cartItem__rate}>
+  {(() => {
+    const parts = [];
+    if (showVisit)
+      parts.push(`${it.visits || 1} visit${(it.visits || 1) > 1 ? "s" : ""}`);
+    if (showUnit)
+      parts.push(`${it.units || 1} unit${(it.units || 1) > 1 ? "s" : ""}`);
+    const months = durationValueToMonths(currentDuration);
+    parts.push(`${months} month${months > 1 ? "s" : ""}`);
+    return parts.join(" × ");
+  })()}
+</span>
+
+                  {/* Show original price + savings when discount is applied */}
+                  {discountPercentage > 0 && (
+                    <span className={styles.cartItem__savings}>
+                      <s>{inr(subtotal, it.currency)}</s>
+                      <span className={styles.cartItem__savingsBadge}>
+                        Save {inr(discountAmount, it.currency)}
+                      </span>
+                    </span>
+                  )}
+
                   <span className={styles.cartItem__line}>
                     {inr(total, it.currency)}
                   </span>
@@ -170,9 +216,22 @@ export default function CartItem({
 
         <div className={styles.cartItem__subtotal}>
           <span>Line total</span>
-          <strong>{hasPayable ? inr(total, it.currency) : "On request"}</strong>
+          {hasPayable ? (
+            <>
+              {discountPercentage > 0 && (
+                <small className={styles.cartItem__originalTotal}>
+                  Original: {inr(subtotal, it.currency)}
+                </small>
+              )}
+              <strong>{inr(total, it.currency)}</strong>
+            </>
+          ) : (
+            <strong>On request</strong>
+          )}
         </div>
       </div>
     </li>
   );
 }
+
+

@@ -10,7 +10,14 @@ import { addToCart, appendToCartItem, removeSubItem } from "@/lib/cart";
 import styles from "./cart.module.scss";
 
 import { hasUnitControl, hasVisitControl } from "../../lib/visibility";
-import { computeItemAmount } from "../../lib/calculations";
+import {
+  computeItemAmount,
+  lineTotal,
+  getDiscountForDuration,
+  DURATION_OPTIONS,
+   monthsToDurationValue,       // ← NEW
+  durationValueToMonths,       // ← NEW (for outbound payload)
+} from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
 import useCart from "../../hooks/useCart";
@@ -98,25 +105,25 @@ export default function QuoteCartPage() {
     setTimeout(() => setToast(""), 1800);
   }, []);
 
-useEffect(() => {
-  const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
+  useEffect(() => {
+    const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
 
-  // Capture current value so we can restore it on cleanup
-  const original = document.body.style.overflow;
+    // Capture current value so we can restore it on cleanup
+    const original = document.body.style.overflow;
 
-  if (anyModalOpen) {
-    document.body.style.overflow = "hidden";
-  } else {
-    // No modal open → make sure the body is scrollable again.
-    document.body.style.overflow = "";
-  }
+    if (anyModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      // No modal open → make sure the body is scrollable again.
+      document.body.style.overflow = "";
+    }
 
-  return () => {
-    // On dependency change or unmount, restore the value that was in
-    // place before this effect ran.
-    document.body.style.overflow = original;
-  };
-}, [quoteOpen, addOpen, lineAddOpen]);
+    return () => {
+      // On dependency change or unmount, restore the value that was in
+      // place before this effect ran.
+      document.body.style.overflow = original;
+    };
+  }, [quoteOpen, addOpen, lineAddOpen]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -169,7 +176,15 @@ useEffect(() => {
 
   const handleAddFromCatalog = useCallback(
     (item) => {
-      addToCart([{ ...item, visits: 1, units: 1 }]);
+      addToCart([
+        {
+          ...item,
+          visits: 1,
+          units: 1,
+     selectedDuration: monthsToDurationValue(item.custom_duration_months),
+
+        },
+      ]);
       refreshCart();
       showToast(`Added: ${item.item_name || item.item_code}`);
     },
@@ -200,9 +215,7 @@ useEffect(() => {
     (parentCode, subCode) => {
       removeSubItem(parentCode, subCode);
       refreshCart();
-      const refreshed = readRawCart().find(
-        (c) => c.item_code === parentCode
-      );
+      const refreshed = readRawCart().find((c) => c.item_code === parentCode);
       if (refreshed) setLineAddParent(refreshed);
       showToast("Sub-item removed");
     },
@@ -228,6 +241,23 @@ useEffect(() => {
     }
   }, [refreshing, refreshCart]);
 
+  // Handle duration change for a cart item
+  const handleDurationChange = useCallback(
+    (itemCode, duration) => {
+      const rawCart = readRawCart();
+      const updatedCart = rawCart.map((item) => {
+        if (item.item_code === itemCode) {
+          return { ...item, custom_duration_months: duration };
+        }
+        return item;
+      });
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
+      refreshCart();
+    },
+    [refreshCart]
+  );
+
+  // ★ FIXED: Totals calculation with duration-based discounts
   const {
     subtotal,
     payableCount,
@@ -235,20 +265,26 @@ useEffect(() => {
     currency,
     totalVisits,
     totalUnits,
+    totalDiscount,
   } = useMemo(() => {
     let nextSubtotal = 0;
     let payable = 0;
     let onRequest = 0;
     let visits = 0;
     let units = 0;
+    let discountTotal = 0;
 
-    const accumulate = (it) => {
+    const accumulate = (it, parentDuration) => {
       if (hasVisitControl(it)) visits += Number(it.visits) || 1;
       if (hasUnitControl(it)) units += Number(it.units) || 1;
 
+      // Determine duration: explicit parent duration wins, then item's own
+      const duration = parentDuration || it.custom_duration_months || "12 Months";
+
       if (it.rate && it.rate > 0) {
-        const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
-        nextSubtotal += computeItemAmount(it) * v;
+        const { total, discountAmount } = lineTotal(it, duration);
+        nextSubtotal += total;
+        discountTotal += discountAmount;
         payable += 1;
       } else {
         onRequest += 1;
@@ -256,8 +292,10 @@ useEffect(() => {
     };
 
     cart.forEach((it) => {
-      accumulate(it);
-      (it.subItems || []).forEach(accumulate);
+      accumulate(it, null);
+      (it.subItems || []).forEach((sub) =>
+        accumulate(sub, it.custom_duration_months || "12 Months")
+      );
     });
 
     return {
@@ -267,6 +305,7 @@ useEffect(() => {
       currency: cart[0]?.currency || "INR",
       totalVisits: visits,
       totalUnits: units,
+      totalDiscount: discountTotal,
     };
   }, [cart]);
 
@@ -287,11 +326,14 @@ useEffect(() => {
     let sub = 0;
     let visits = 0;
     let units = 0;
+    let discountTotal = 0;
 
     activeQuoteItems.forEach((it) => {
+      const duration = it.custom_duration_months || "12 Months";
       if (it.rate && it.rate > 0) {
-        const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
-        sub += computeItemAmount(it) * v;
+        const { total, discountAmount } = lineTotal(it, duration);
+        sub += total;
+        discountTotal += discountAmount;
       }
       if (hasVisitControl(it)) visits += Number(it.visits) || 1;
       if (hasUnitControl(it)) units += Number(it.units) || 1;
@@ -303,6 +345,7 @@ useEffect(() => {
       totalUnits: units,
       lineCount: activeQuoteItems.length,
       currency: activeQuoteItems[0]?.currency || "INR",
+      totalDiscount: discountTotal,
     };
   }, [activeQuoteItems]);
 
@@ -352,7 +395,10 @@ useEffect(() => {
       : "Commercial";
 
     lines.forEach((parent) => {
-      const pushItem = (it) => {
+      const parentDuration = parent.custom_duration_months || "12 Months";
+      const parentDiscount = getDiscountForDuration(parentDuration);
+
+      const pushItem = (it, duration, discount) => {
         const showVisit = hasVisitControl(it);
         const showUnit = hasUnitControl(it);
         const visits = showVisit ? Number(it.visits) || 1 : 1;
@@ -362,8 +408,7 @@ useEffect(() => {
           item_code: it.item_code,
           category: safeCategory,
           service: "AMC Charges",
-          amc_type_id:
-            it.amc_type_id || it.amc_type_name || it.amc_type || "",
+          amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
           amc_type: it.amc_type_name || it.amc_type || "",
           amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
           amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
@@ -373,14 +418,18 @@ useEffect(() => {
           custom_visit: visits,
           rate: Number(it.rate) || 0,
           stock_uom: it.stock_uom || it.uom || "Nos",
+         custom_duration_months: durationValueToMonths(durationValue), // ← numeric
+          custom_discount_percentage: discount,
         };
 
         if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
         out.push(item);
       };
 
-      pushItem(parent);
-      (parent.subItems || []).forEach(pushItem);
+      pushItem(parent, parentDuration, parentDiscount);
+      (parent.subItems || []).forEach((sub) =>
+        pushItem(sub, parentDuration, parentDiscount)
+      );
     });
 
     return out;
@@ -397,6 +446,10 @@ useEffect(() => {
           activeQuoteItems,
           form.property_type
         );
+
+        // For bulk quote, use the first item's duration as the header duration
+        const headerDuration =
+          activeQuoteItems[0]?.custom_duration_months || form.duration || "12 Months";
 
         const payload = {
           customer_name: form.name.trim(),
@@ -415,7 +468,7 @@ useEffect(() => {
           shipping_email: (form.shipping_email || "").trim(),
           remarks: form.notes.trim(),
           property_type: form.property_type,
-          duration: form.duration,
+          duration: headerDuration,
           price_list: form.price_list,
           items: itemsPayload,
         };
@@ -574,7 +627,7 @@ useEffect(() => {
     <>
       <AMCNavbar />
       <main className={styles.cartPage}>
-         <CartHero
+        <CartHero
           styles={styles}
           cartLength={cart.length}
           totalVisits={totalVisits}
@@ -590,10 +643,10 @@ useEffect(() => {
         )}
 
         {!submitted && cart.length === 0 && (
-          <EmptyCart 
-            styles={styles} 
-            onAddItems={() => setAddOpen(true)} 
-            refreshing={refreshing} 
+          <EmptyCart
+            styles={styles}
+            onAddItems={() => setAddOpen(true)}
+            refreshing={refreshing}
           />
         )}
 
@@ -613,10 +666,7 @@ useEffect(() => {
                           role="status"
                           aria-live="polite"
                         >
-                          <span
-                            className={styles.spinner}
-                            aria-hidden="true"
-                          />
+                          <span className={styles.spinner} aria-hidden="true" />
                           Refreshing cart…
                         </span>
                       ) : (
@@ -665,6 +715,7 @@ useEffect(() => {
                       onUnitsChange={setUnits}
                       onSubVisitsChange={setSubVisits}
                       onSubUnitsChange={setSubUnits}
+                      onDurationChange={handleDurationChange}
                       onRemove={handleRemove}
                       onRemoveSub={handleSubRemove}
                       onQuote={openItemQuote}
@@ -686,6 +737,7 @@ useEffect(() => {
                 onRequestCount={onRequestCount}
                 totalVisits={totalVisits}
                 totalUnits={totalUnits}
+                totalDiscount={totalDiscount}
                 onRequestQuote={openBulkQuote}
               />
             </div>
