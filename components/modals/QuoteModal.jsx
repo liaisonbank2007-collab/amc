@@ -432,6 +432,26 @@ export default function QuoteModal({
           noValidate={false}
           data-view-mode={isViewMode ? "true" : "false"}
         >
+          {/* -------- Preview Mode Banner (only in view mode) -------- */}
+          {isViewMode && (
+            <div
+              className={styles.cartModal__previewBanner}
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                className={styles.cartModal__previewBannerDot}
+                aria-hidden="true"
+              />
+              <span className={styles.cartModal__previewBannerText}>
+                Preview Mode
+              </span>
+              <span className={styles.cartModal__previewBannerSub}>
+                Fields are read-only. Click &quot;Edit Details&quot; to make changes.
+              </span>
+            </div>
+          )}
+
           {/* -------------------- Contact details -------------------- */}
           <div className={styles.formSection}>
             <span className={styles.formSection__label}>Contact details</span>

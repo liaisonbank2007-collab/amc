@@ -17,7 +17,72 @@
   padding-bottom: 6rem;
 }
 /* Add to your cartModal CSS module */
+/* Add to your cartModal CSS module */
 
+/* ---------- Preview Mode Banner ---------- */
+.cartModal__previewBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  background-color: #f0f7ff; /* Soft blue tint */
+  border: 1px solid #c7dcff;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.cartModal__previewBannerDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #2563eb; /* Primary blue */
+  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  animation: previewPulse 2s infinite;
+}
+
+@keyframes previewPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+  }
+}
+
+.cartModal__previewBannerText {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e40af; /* Deep blue */
+  letter-spacing: 0.02em;
+}
+
+.cartModal__previewBannerSub {
+  font-size: 0.78rem;
+  font-weight: 400;
+  color: #4b5563; /* Neutral gray */
+}
+
+/* ---------- Plain read-only value ---------- */
+.cartModal__plainValue {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1f2937;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 1.5rem;
+}
 /* Plain read-only text value displayed in preview mode */
 .cartModal__plainValue {
   display: block;
