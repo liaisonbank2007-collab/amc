@@ -18,6 +18,50 @@ const QUOTE_FORM_ID = "quote-form";
 const GUARD_COALESCE_MS = 400;
 const FIRST_EDITABLE_FIELD_NAME = "name";
 
+/* ------------------------------------------------------------------ *
+ * Number to Words (Indian System)
+ * ------------------------------------------------------------------ */
+function numberToWords(num) {
+  if (!num || num === 0) return "Zero";
+  const a = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+    "Seventeen", "Eighteen", "Nineteen",
+  ];
+  const b = [
+    "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy",
+    "Eighty", "Ninety",
+  ];
+
+  const inWords = (n) => {
+    if (n < 20) return a[n];
+    if (n < 100)
+      return b[Math.floor(n / 10)] + (n % 10 ? " " + a[n % 10] : "");
+    if (n < 1000)
+      return (
+        a[Math.floor(n / 100)] +
+        " Hundred" +
+        (n % 100 ? " " + inWords(n % 100) : "")
+      );
+    return "";
+  };
+
+  let result = "";
+
+  const crore = Math.floor(num / 10000000);
+  const lakh = Math.floor((num % 10000000) / 100000);
+  const thousand = Math.floor((num % 100000) / 1000);
+  const hundred = Math.floor((num % 1000) / 100);
+
+  if (crore) result += inWords(crore) + " Crore ";
+  if (lakh) result += inWords(lakh) + " Lakh ";
+  if (thousand) result += inWords(thousand) + " Thousand ";
+  if (hundred) result += inWords(hundred) + " Hundred ";
+  if (num % 100) result += inWords(num % 100);
+
+  return result.trim();
+}
+
 export default function QuoteModal({
   styles,
   isBulk,
@@ -305,7 +349,7 @@ export default function QuoteModal({
   }, []);
 
   /* ------------------------------------------------------------------ *
-   * 9. Memoised preview rows
+   * 9. Memoised preview rows (for the form preview)
    * ------------------------------------------------------------------ */
   const previewRows = useMemo(() => {
     return activeQuoteItems.map((it, idx) => {
@@ -342,11 +386,612 @@ export default function QuoteModal({
     });
   }, [activeQuoteItems]);
 
+  /* ------------------------------------------------------------------ *
+   * 10. Memoised Quotation Preview Data
+   * ------------------------------------------------------------------ */
+  const quotationData = useMemo(() => {
+    let subtotal = 0;
+
+    const items = activeQuoteItems.map((item, idx) => {
+      const qty = Number(item.custom_unit) || Number(item.qty) || 1;
+      const rate = Number(item.rate) || 0;
+      const amount = qty * rate;
+      subtotal += amount;
+
+      const serviceName = item.item_name || item.item_code || "";
+
+      return {
+        sr: idx + 1,
+        description: serviceName,
+        subDescription: item.amc_sub_type || item.amc_type || serviceName,
+        areaQty: qty,
+        uom: item.price_uom || item.uom || item.stock_uom || "Nos",
+        visit: item.custom_visit || 1,
+        rate: rate,
+        amount: amount,
+      };
+    });
+
+    const cgstRate = 9;
+    const sgstRate = 9;
+    const cgstAmount = subtotal * (cgstRate / 100);
+    const sgstAmount = subtotal * (sgstRate / 100);
+    const grandTotal = subtotal + cgstAmount + sgstAmount;
+
+    const formatAddress = (addr, city, state, pincode) => {
+      const parts = [addr, city, state, pincode].filter(Boolean);
+      return parts.join(", ");
+    };
+
+    return {
+      buyer: {
+        name: form.name || "NA",
+        company: form.company_name || "",
+        address: formatAddress(
+          form.address,
+          form.city,
+          form.state,
+          form.pincode
+        ),
+        mobile: form.phone || "",
+        email: form.email || "",
+      },
+      consignee: {
+        name: form.shipping_name || form.name || "NA",
+        company: form.shipping_company || form.company_name || "",
+        address: formatAddress(
+          form.shipping_address,
+          form.shipping_city,
+          form.shipping_state,
+          form.shipping_pincode
+        ),
+        mobile: form.shipping_mobile || form.phone || "",
+        email: form.shipping_email || form.email || "",
+      },
+      items,
+      subtotal,
+      cgstRate,
+      cgstAmount,
+      sgstRate,
+      sgstAmount,
+      grandTotal,
+      grandTotalWords: numberToWords(Math.round(grandTotal)),
+      currency: quoteSummary.currency || "INR",
+    };
+  }, [activeQuoteItems, form, quoteSummary]);
+
   const closeFromBackdrop = useCallback(() => {
     if (submitting) return;
     if (swalOpenRef.current) return;
     onClose?.();
   }, [submitting, onClose]);
+
+  /* ------------------------------------------------------------------ *
+   * 11. Build table rows as an array
+   *     - Totals use colSpan to align with Rate/Amount columns
+   *     - Description column is commented out
+   *     - Footer rows moved inside the table using colSpan="7"
+   * ------------------------------------------------------------------ */
+  const tableBodyRows = useMemo(() => {
+    const rows = [];
+
+    // Item rows
+    quotationData.items.forEach((item) => {
+      rows.push(
+        <tr key={`item-${item.sr}`}>
+          <td>{item.sr}</td>
+          <td>{item.description}</td>
+          {/* Description column commented out */}
+          {/* <td>{item.subDescription || item.description}</td> */}
+          <td>{item.areaQty}</td>
+          <td>{item.uom}</td>
+          <td>{item.visit}</td>
+          <td>{inr(item.rate, quotationData.currency)}</td>
+          <td className="text-right">{inr(item.amount, quotationData.currency)}</td>
+        </tr>
+      );
+    });
+
+    const totalRowClass = styles.quotationPreview__totalRow;
+    const grandTotalRowClass = `${styles.quotationPreview__totalRow} ${styles["quotationPreview__totalRow--grand"]}`;
+
+    // Total row: spans 6 columns (labels align with Rate column, value in Amount column)
+    rows.push(
+      <tr key="total-row" className={totalRowClass}>
+        <td
+          colSpan="6"
+          style={{ textAlign: "right", fontWeight: "bold", paddingRight: "1rem" }}
+        >
+          Total
+        </td>
+        <td style={{ fontWeight: "bold", textAlign: "right" }}>
+          {inr(quotationData.subtotal, quotationData.currency)}
+        </td>
+      </tr>
+    );
+
+    // CGST row
+    rows.push(
+      <tr key="cgst-row" className={totalRowClass}>
+        <td
+          colSpan="6"
+          style={{ textAlign: "right", fontWeight: "bold", paddingRight: "1rem" }}
+        >
+          CGST @ {quotationData.cgstRate}%
+        </td>
+        <td style={{ textAlign: "right" }}>
+          {inr(quotationData.cgstAmount, quotationData.currency)}
+        </td>
+      </tr>
+    );
+
+    // SGST row
+    rows.push(
+      <tr key="sgst-row" className={totalRowClass}>
+        <td
+          colSpan="6"
+          style={{ textAlign: "right", fontWeight: "bold", paddingRight: "1rem" }}
+        >
+          SGST @ {quotationData.sgstRate}%
+        </td>
+        <td style={{ textAlign: "right" }}>
+          {inr(quotationData.sgstAmount, quotationData.currency)}
+        </td>
+      </tr>
+    );
+
+    // Grand Total row
+    rows.push(
+      <tr key="grand-total-row" className={grandTotalRowClass}>
+        <td
+          colSpan="6"
+          style={{ textAlign: "right", fontWeight: "bold", paddingRight: "1rem" }}
+        >
+          Grand Total
+        </td>
+        <td style={{ fontWeight: "bold", textAlign: "right" }}>
+          {inr(quotationData.grandTotal, quotationData.currency)}
+        </td>
+      </tr>
+    );
+
+    /* ------------------------------------------------------------------ *
+     * Footer rows inside the table (as per attached image)
+     * ------------------------------------------------------------------ */
+
+    // Grand Total (In Words) - full width
+    rows.push(
+      <tr key="grand-total-words-row" className={styles.quotationPreview__wordsRow}>
+        <td
+          colSpan="7"
+          style={{
+            textAlign: "left",
+            fontWeight: "bold",
+            paddingLeft: "1rem",
+          }}
+        >
+          Grand Total : INR {quotationData.grandTotalWords} only.
+        </td>
+      </tr>
+    );
+
+    // Payment Terms and Conditions - full width header
+    rows.push(
+      <tr key="payment-terms-header-row" className={styles.quotationPreview__termsRow}>
+        <td
+          colSpan="7"
+          style={{
+            textAlign: "left",
+            fontWeight: "bold",
+            paddingLeft: "1rem",
+          }}
+        >
+          Payment Terms and Conditions :
+        </td>
+      </tr>
+    );
+
+    // 100% Advance text - full width indented
+    rows.push(
+      <tr key="payment-terms-text-row" className={styles.quotationPreview__termsRow}>
+        <td
+          colSpan="7"
+          style={{
+            textAlign: "left",
+            // paddingLeft: "3rem",
+          }}
+        >
+          100% of Advance the total order value shall be payable for confirmation of the work order.
+        </td>
+      </tr>
+    );
+
+    // NOTE row - full width
+    // rows.push(
+    //   <tr key="note-row" className={styles.quotationPreview__termsRow}>
+    //     <td
+    //       colSpan="7"
+    //       style={{
+    //         textAlign: "left",
+    //         paddingLeft: "1rem",
+    //       }}
+    //     >
+    //       <strong>NOTE:-</strong> This quotation shall remain valid for <strong>15 days</strong> from the date of issuance.
+    //     </td>
+    //   </tr>
+    // );
+
+    return rows;
+  }, [quotationData, styles]);
+
+  /* ------------------------------------------------------------------ *
+   * EXTRACTED JSX: View Mode Content
+   * ------------------------------------------------------------------ */
+  const viewModeContent = (
+    <div className={styles.quotationPreview}>
+      <div className={styles.quotationPreview__headerGrid}>
+        <div className={styles.quotationPreview__headerCol}>
+          <h4>Buyer (Bill to)</h4>
+          <div className={styles.quotationPreview__addressBlock}>
+            <strong>
+              {quotationData.buyer.company || quotationData.buyer.name}
+            </strong>
+            <p>{quotationData.buyer.address}</p>
+            {quotationData.buyer.mobile && (
+              <p>Phone: {quotationData.buyer.mobile}</p>
+            )}
+            {quotationData.buyer.email && (
+              <p>Email: {quotationData.buyer.email}</p>
+            )}
+          </div>
+        </div>
+        <div className={styles.quotationPreview__headerCol}>
+          <h4>Consignee (Ship to)</h4>
+          <div className={styles.quotationPreview__addressBlock}>
+            <strong>
+              {quotationData.consignee.company || quotationData.consignee.name}
+            </strong>
+            <p>{quotationData.consignee.address}</p>
+            {quotationData.consignee.mobile && (
+              <p>Phone: {quotationData.consignee.mobile}</p>
+            )}
+            {quotationData.consignee.email && (
+              <p>Email: {quotationData.consignee.email}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* <div className={styles.quotationPreview__metaRow}>
+        <div className={styles.quotationPreview__metaItem}>
+          <span>Contract Type:</span> {form.service_type || "AMC Charges"}
+        </div>
+        <div className={styles.quotationPreview__metaItem}>
+          <span>Category:</span> {form.property_type || "Commercial"}
+        </div>
+      </div> */}
+
+      <div className={styles.quotationPreview__tableWrapper}>
+        <table className={styles.quotationPreview__table}>
+          <thead>
+            <tr>
+              <th>Sr No.</th>
+              <th>Type Of Services</th>
+              {/* Description column header commented out */}
+              {/* <th>Description</th> */}
+              <th>Area/Qty</th>
+              <th>UOM</th>
+              <th>Visit</th>
+              <th>Rate (Rs)</th>
+              <th>Amount (Rs)</th>
+            </tr>
+          </thead>
+          <tbody>{tableBodyRows}</tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  /* ------------------------------------------------------------------ *
+   * EXTRACTED JSX: Edit Mode Content
+   * ------------------------------------------------------------------ */
+  const editModeContent = (
+    <div className={styles.editModeContainer}>
+      <div className={styles.formSection}>
+        <span className={styles.formSection__label}>Contact details</span>
+        <div className={styles.cartModal__grid}>
+          <label>
+            <span>Full Name *</span>
+            <input
+              type="text"
+              name="name"
+              value={form.name}
+              onChange={handleChange}
+              placeholder="e.g. Ananya Sharma"
+              autoComplete="name"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Company Name</span>
+            <input
+              type="text"
+              name="company_name"
+              value={form.company_name}
+              onChange={handleChange}
+              placeholder="e.g. ABC Technologies Pvt Ltd"
+              autoComplete="organization"
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Phone *</span>
+            <input
+              type="tel"
+              name="phone"
+              value={form.phone}
+              onChange={handleChange}
+              placeholder="+91 98765 43210"
+              autoComplete="tel"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Email *</span>
+            <input
+              type="email"
+              name="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="you@company.com"
+              autoComplete="email"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className={styles.formSection}>
+        <span className={styles.formSection__label}>Billing details</span>
+        <div className={styles.cartModal__grid}>
+          <label className={styles.cartModal__full}>
+            <span>Service Address *</span>
+            <textarea
+              name="address"
+              rows="2"
+              value={form.address}
+              onChange={handleChange}
+              placeholder="Building, street, area"
+              autoComplete="street-address"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>City *</span>
+            <input
+              type="text"
+              name="city"
+              value={form.city}
+              onChange={handleChange}
+              placeholder="Mumbai"
+              autoComplete="address-level2"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>State *</span>
+            <input
+              type="text"
+              name="state"
+              value={form.state}
+              onChange={handleChange}
+              placeholder="Maharashtra"
+              autoComplete="address-level1"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Pincode *</span>
+            <input
+              type="text"
+              name="pincode"
+              value={form.pincode}
+              onChange={handleChange}
+              placeholder="400069"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              pattern="[0-9]{4,10}"
+              required
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Property Type</span>
+            <select
+              name="property_type"
+              value={form.property_type}
+              onChange={handleChange}
+              suppressHydrationWarning
+            >
+              <option value="Commercial">Commercial</option>
+              <option value="Residential">Residential</option>
+              <option value="Industrial">Industrial</option>
+              <option value="Institutional">Institutional</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className={styles.formSection}>
+        <div className={styles.formSection__head}>
+          <span className={styles.formSection__label}>Shipping details</span>
+          <label className={styles.cartModal__checkbox}>
+            <input
+              type="checkbox"
+              checked={form.sameAsSite}
+              onChange={handleSameAsSiteToggle}
+              disabled={isViewMode}
+              aria-readonly={isViewMode}
+              suppressHydrationWarning
+            />
+            <span className={styles.cartModal__checkboxBox} aria-hidden="true">
+              <svg viewBox="0 0 16 16" fill="none" width="14" height="14">
+                <path
+                  d="M3 8.5L6.5 12L13 4.5"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+            <span className={styles.cartModal__checkboxLabel}>
+              Same as Billing details
+            </span>
+          </label>
+        </div>
+        <div className={styles.cartModal__grid}>
+          <label className={styles.cartModal__full}>
+            <span>Shipping Address *</span>
+            <textarea
+              name="shipping_address"
+              rows="2"
+              value={form.shipping_address}
+              onChange={handleChange}
+              placeholder="Building, street, area"
+              autoComplete="shipping street-address"
+              required
+              disabled={shippingLocked}
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Shipping City *</span>
+            <input
+              type="text"
+              name="shipping_city"
+              value={form.shipping_city}
+              onChange={handleChange}
+              placeholder="Mumbai"
+              autoComplete="shipping address-level2"
+              required
+              disabled={shippingLocked}
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Shipping Email *</span>
+            <input
+              type="email"
+              name="shipping_email"
+              value={form.shipping_email}
+              onChange={handleChange}
+              placeholder="you@company.com"
+              autoComplete="shipping email"
+              required
+              disabled={shippingLocked}
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Shipping Mobile *</span>
+            <input
+              type="tel"
+              name="shipping_mobile"
+              value={form.shipping_mobile}
+              onChange={handleChange}
+              placeholder="+91 98765 43210"
+              autoComplete="shipping tel"
+              required
+              disabled={shippingLocked}
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Shipping State *</span>
+            <input
+              type="text"
+              name="shipping_state"
+              value={form.shipping_state}
+              onChange={handleChange}
+              placeholder="Maharashtra"
+              autoComplete="shipping address-level1"
+              required
+              disabled={shippingLocked}
+              suppressHydrationWarning
+            />
+          </label>
+          <label>
+            <span>Shipping Pincode *</span>
+            <input
+              type="text"
+              name="shipping_pincode"
+              value={form.shipping_pincode}
+              onChange={handleChange}
+              placeholder="400069"
+              inputMode="numeric"
+              autoComplete="shipping postal-code"
+              pattern="[0-9]{4,10}"
+              required
+              disabled={shippingLocked}
+              suppressHydrationWarning
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className={styles.formSection}>
+        <span className={styles.formSection__label}>AMC preferences</span>
+        <div className={styles.cartModal__grid}>
+          <label>
+            <span>Duration</span>
+            <select
+              name="duration"
+              value={form.duration}
+              onChange={handleChange}
+              suppressHydrationWarning
+            >
+              <option value="3 Months">3 Months</option>
+              <option value="6 Months">6 Months</option>
+              <option value="12 Months">12 Months</option>
+            </select>
+          </label>
+          <label className={styles.cartModal__full}>
+            <span>Remarks (optional)</span>
+            <textarea
+              name="notes"
+              rows="2"
+              value={form.notes}
+              onChange={handleChange}
+              placeholder="AMC services required for office premises…"
+              suppressHydrationWarning
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className={styles.cartModal__summary}>
+        <div>
+          <span>Total visits</span>
+          <strong>{quoteSummary.totalVisits}</strong>
+        </div>
+        <div>
+          <span>Total units</span>
+          <strong>{quoteSummary.totalUnits}</strong>
+        </div>
+        <div>
+          <span>Estimated subtotal</span>
+          <strong>{inr(quoteSummary.subtotal, quoteSummary.currency)}</strong>
+        </div>
+      </div>
+    </div>
+  );
 
   /* ------------------------------------------------------------------ *
    * Render
@@ -382,13 +1027,13 @@ export default function QuoteModal({
           </span>
           <h2 id={titleId}>
             {isBulk ? (
-              <>
+              <React.Fragment>
                 Quote for <span>all items.</span>
-              </>
+              </React.Fragment>
             ) : (
-              <>
+              <React.Fragment>
                 Quote for <span>this item.</span>
-              </>
+              </React.Fragment>
             )}
           </h2>
           <p>
@@ -406,22 +1051,24 @@ export default function QuoteModal({
           </p>
         </div>
 
-        <div className={styles.cartModal__preview}>
-          {previewRows.map((row) => (
-            <div key={row.key} className={styles.cartModal__previewRow}>
-              <div className={styles.cartModal__previewThumb}>
-                {row.thumb}
+        {!isViewMode && (
+          <div className={styles.cartModal__preview}>
+            {previewRows.map((row) => (
+              <div key={row.key} className={styles.cartModal__previewRow}>
+                <div className={styles.cartModal__previewThumb}>
+                  {row.thumb}
+                </div>
+                <div className={styles.cartModal__previewInfo}>
+                  <strong title={row.title}>{row.title}</strong>
+                  <span>{row.subtitle}</span>
+                </div>
+                <div className={styles.cartModal__previewPrice}>
+                  {row.amount}
+                </div>
               </div>
-              <div className={styles.cartModal__previewInfo}>
-                <strong title={row.title}>{row.title}</strong>
-                <span>{row.subtitle}</span>
-              </div>
-              <div className={styles.cartModal__previewPrice}>
-                {row.amount}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         <form
           id={QUOTE_FORM_ID}
@@ -432,7 +1079,6 @@ export default function QuoteModal({
           noValidate={false}
           data-view-mode={isViewMode ? "true" : "false"}
         >
-          {/* -------- Preview Mode Banner (only in view mode) -------- */}
           {isViewMode && (
             <div
               className={styles.cartModal__previewBanner}
@@ -452,424 +1098,10 @@ export default function QuoteModal({
             </div>
           )}
 
-          {/* -------------------- Contact details -------------------- */}
-          <div className={styles.formSection}>
-            <span className={styles.formSection__label}>Contact details</span>
-            <div className={styles.cartModal__grid}>
-              <label>
-                <span>Full Name *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.name || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    placeholder="e.g. Ananya Sharma"
-                    autoComplete="name"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Company Name</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.company_name || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="company_name"
-                    value={form.company_name}
-                    onChange={handleChange}
-                    placeholder="e.g. ABC Technologies Pvt Ltd"
-                    autoComplete="organization"
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Phone *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.phone || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={form.phone}
-                    onChange={handleChange}
-                    placeholder="+91 98765 43210"
-                    autoComplete="tel"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Email *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.email || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="you@company.com"
-                    autoComplete="email"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-            </div>
+          <div className={styles.cartModal__contentWrapper}>
+            {isViewMode ? viewModeContent : editModeContent}
           </div>
 
-          {/* -------------------- Billing details -------------------- */}
-          <div className={styles.formSection}>
-            <span className={styles.formSection__label}>
-              Billing details
-            </span>
-            <div className={styles.cartModal__grid}>
-              <label className={styles.cartModal__full}>
-                <span>Service Address *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.address || "NA"}
-                  </div>
-                ) : (
-                  <textarea
-                    name="address"
-                    rows="2"
-                    value={form.address}
-                    onChange={handleChange}
-                    placeholder="Building, street, area"
-                    autoComplete="street-address"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>City *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.city || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="city"
-                    value={form.city}
-                    onChange={handleChange}
-                    placeholder="Mumbai"
-                    autoComplete="address-level2"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>State *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.state || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="state"
-                    value={form.state}
-                    onChange={handleChange}
-                    placeholder="Maharashtra"
-                    autoComplete="address-level1"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Pincode *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.pincode || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="pincode"
-                    value={form.pincode}
-                    onChange={handleChange}
-                    placeholder="400069"
-                    inputMode="numeric"
-                    autoComplete="postal-code"
-                    pattern="[0-9]{4,10}"
-                    required
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Property Type</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.property_type || "NA"}
-                  </div>
-                ) : (
-                  <select
-                    name="property_type"
-                    value={form.property_type}
-                    onChange={handleChange}
-                    suppressHydrationWarning
-                  >
-                    <option value="Commercial">Commercial</option>
-                    <option value="Residential">Residential</option>
-                    <option value="Industrial">Industrial</option>
-                    <option value="Institutional">Institutional</option>
-                  </select>
-                )}
-              </label>
-            </div>
-          </div>
-
-          {/* -------------------- Shipping details -------------------- */}
-          <div className={styles.formSection}>
-            <div className={styles.formSection__head}>
-              <span className={styles.formSection__label}>
-                Shipping details
-              </span>
-              <label className={styles.cartModal__checkbox}>
-                <input
-                  type="checkbox"
-                  checked={form.sameAsSite}
-                  onChange={handleSameAsSiteToggle}
-                  disabled={isViewMode}
-                  aria-readonly={isViewMode}
-                  suppressHydrationWarning
-                />
-                <span
-                  className={styles.cartModal__checkboxBox}
-                  aria-hidden="true"
-                >
-                  <svg
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    width="14"
-                    height="14"
-                  >
-                    <path
-                      d="M3 8.5L6.5 12L13 4.5"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <span className={styles.cartModal__checkboxLabel}>
-                  Same as Billing details
-                </span>
-              </label>
-            </div>
-            <div className={styles.cartModal__grid}>
-              <label className={styles.cartModal__full}>
-                <span>Shipping Address *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.shipping_address || "NA"}
-                  </div>
-                ) : (
-                  <textarea
-                    name="shipping_address"
-                    rows="2"
-                    value={form.shipping_address}
-                    onChange={handleChange}
-                    placeholder="Building, street, area"
-                    autoComplete="shipping street-address"
-                    required
-                    disabled={shippingLocked}
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Shipping City *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.shipping_city || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="shipping_city"
-                    value={form.shipping_city}
-                    onChange={handleChange}
-                    placeholder="Mumbai"
-                    autoComplete="shipping address-level2"
-                    required
-                    disabled={shippingLocked}
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Shipping Email *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.shipping_email || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="email"
-                    name="shipping_email"
-                    value={form.shipping_email}
-                    onChange={handleChange}
-                    placeholder="you@company.com"
-                    autoComplete="shipping email"
-                    required
-                    disabled={shippingLocked}
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Shipping Mobile *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.shipping_mobile || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="tel"
-                    name="shipping_mobile"
-                    value={form.shipping_mobile}
-                    onChange={handleChange}
-                    placeholder="+91 98765 43210"
-                    autoComplete="shipping tel"
-                    required
-                    disabled={shippingLocked}
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Shipping State *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.shipping_state || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="shipping_state"
-                    value={form.shipping_state}
-                    onChange={handleChange}
-                    placeholder="Maharashtra"
-                    autoComplete="shipping address-level1"
-                    required
-                    disabled={shippingLocked}
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-              <label>
-                <span>Shipping Pincode *</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.shipping_pincode || "NA"}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    name="shipping_pincode"
-                    value={form.shipping_pincode}
-                    onChange={handleChange}
-                    placeholder="400069"
-                    inputMode="numeric"
-                    autoComplete="shipping postal-code"
-                    pattern="[0-9]{4,10}"
-                    required
-                    disabled={shippingLocked}
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-            </div>
-          </div>
-
-          {/* -------------------- AMC preferences -------------------- */}
-          <div className={styles.formSection}>
-            <span className={styles.formSection__label}>
-              AMC preferences
-            </span>
-            <div className={styles.cartModal__grid}>
-              <label>
-                <span>Duration</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.duration || "NA"}
-                  </div>
-                ) : (
-                  <select
-                    name="duration"
-                    value={form.duration}
-                    onChange={handleChange}
-                    suppressHydrationWarning
-                  >
-                    <option value="3 Months">3 Months</option>
-                    <option value="6 Months">6 Months</option>
-                    <option value="12 Months">12 Months</option>
-                  </select>
-                )}
-              </label>
-              <label className={styles.cartModal__full}>
-                <span>Remarks (optional)</span>
-                {isViewMode ? (
-                  <div className={styles.cartModal__plainValue}>
-                    {form.notes || "NA"}
-                  </div>
-                ) : (
-                  <textarea
-                    name="notes"
-                    rows="2"
-                    value={form.notes}
-                    onChange={handleChange}
-                    placeholder="AMC services required for office premises…"
-                    suppressHydrationWarning
-                  />
-                )}
-              </label>
-            </div>
-          </div>
-
-          {/* -------------------- Summary -------------------- */}
-          <div className={styles.cartModal__summary}>
-            <div>
-              <span>Total visits</span>
-              <strong>{quoteSummary.totalVisits}</strong>
-            </div>
-            <div>
-              <span>Total units</span>
-              <strong>{quoteSummary.totalUnits}</strong>
-            </div>
-            <div>
-              <span>Estimated subtotal</span>
-              <strong>
-                {inr(quoteSummary.subtotal, quoteSummary.currency)}
-              </strong>
-            </div>
-          </div>
-
-          {/* -------------------- Actions -------------------- */}
           <div className={styles.cartModal__actions}>
             <button
               type="button"
@@ -881,7 +1113,7 @@ export default function QuoteModal({
             </button>
 
             {isViewMode ? (
-              <>
+              <React.Fragment>
                 <button
                   type="button"
                   className={`${styles.btn} ${styles["btn--preview"]}`}
@@ -899,7 +1131,7 @@ export default function QuoteModal({
                   {submitting ? "Submitting…" : "Create Quote"}
                   {!submitting && <span>↗</span>}
                 </button>
-              </>
+              </React.Fragment>
             ) : (
               <button
                 type="submit"

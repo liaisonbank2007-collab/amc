@@ -1,6 +1,164 @@
-/* =========================================================
-   PAGE
-   ========================================================= */
+// =========================================================
+// QUOTE MODAL / QUOTATION PREVIEW
+// =========================================================
+
+.quotationPreview {
+  width: 100%;
+  font-size: 0.9rem;
+  color: #333;
+  // border: 1px solid #ddd;
+  background: #fff;
+  padding: 0;
+
+  &__headerGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    // border-bottom: 1px solid #ddd;
+    margin-bottom: 0;
+  }
+
+  &__headerCol {
+    padding: 1rem;
+
+    &:first-child {
+      border-right: 1px solid #ddd;
+    }
+
+    h4 {
+      margin: 0 0 0.5rem 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #d07913;
+      text-transform: uppercase;
+          border-bottom: 1px solid #f8e2bd;
+    }
+  }
+
+  &__addressBlock {
+    p {
+      margin: 0.2rem 0;
+      line-height: 1.4;
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    strong {
+      display: block;
+      margin-bottom: 0.3rem;
+      font-size: 0.95rem;
+      color: #111;
+    }
+  }
+
+  &__metaRow {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    background: #f9f9f9;
+    // border-bottom: 1px solid #ddd;
+    // margin-bottom: 1rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  &__metaItem {
+    span {
+      color: #d07913;
+      margin-right: 0.5rem;
+    }
+  }
+
+  &__tableWrapper {
+    overflow-x: auto;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 0.6rem 0.75rem;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    th {
+      background: #f4f4f4;
+      font-weight: 600;
+      white-space: nowrap;
+      color: #333;
+    }
+
+    tbody tr:nth-child(even):not([class*="totalRow"]):not([class*="wordsRow"]) {
+      background-color: #fafafa;
+    }
+  }
+
+  &__totalRow {
+    td {
+      background-color: #fafafa;
+    }
+  }
+
+  &__totalRow--grand {
+    td {
+      border-top: 1px solid #d07913;
+      border-bottom: 1px solid #d07913;
+      background-color: #f0f0f0;
+      font-weight: 700;
+    }
+  }
+
+  &__wordsRow {
+    td {
+      background-color: #fcfcfc;
+      font-style: italic;
+      color: #444;
+      font-size: 0.85rem;
+    }
+  }
+
+  &__footer {
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+    border-top: 1px solid #ddd;
+    font-weight: 600;
+    text-align: right;
+    font-size: 0.85rem;
+    color: #333;
+  }
+}
+
+// Optional: Print styles for the preview
+@media print {
+  .quotationPreview {
+    border: none;
+    padding: 0;
+  }
+}
+
+// =========================================================
+// LAYOUT HELPERS
+// =========================================================
+
+.cartModal__contentWrapper {
+  width: 100%;
+  display: block;
+}
+
+.editModeContainer {
+  width: 100%;
+  display: block;
+}
+
+// =========================================================
+// CART PAGE
+// =========================================================
+
 .cartPage {
   --brand: #cd7913;
   --brand-dark: #b8690f;
@@ -11,15 +169,16 @@
   --bg: #f7f8f7;
   --card: #ffffff;
   --danger: #b00020;
-  // z-index: 9999;
+
   background: var(--bg);
   min-height: 100vh;
   padding-bottom: 6rem;
 }
-/* Add to your cartModal CSS module */
-/* Add to your cartModal CSS module */
 
-/* ---------- Preview Mode Banner ---------- */
+// =========================================================
+// PREVIEW MODE BANNER
+// =========================================================
+
 .cartModal__previewBanner {
   display: flex;
   flex-direction: row;
@@ -29,7 +188,7 @@
   width: 100%;
   padding: 0.75rem 1rem;
   margin-bottom: 1.25rem;
-  background-color: #f8e2bd; /* Soft blue tint */
+  background-color: #f8e2bd;
   border: 1px solid #b86951;
   border-radius: 10px;
   text-align: center;
@@ -41,7 +200,7 @@
   height: 8px;
   border-radius: 50%;
   background-color: var(--brand, #cd7913);
-box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   animation: previewPulse 2s infinite;
 }
 
@@ -60,17 +219,20 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
 .cartModal__previewBannerText {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--brand, #cd7913); /* Deep blue */
+  color: var(--brand, #cd7913);
   letter-spacing: 0.02em;
 }
 
 .cartModal__previewBannerSub {
   font-size: 0.78rem;
   font-weight: 400;
-  color: #4b5563; /* Neutral gray */
+  color: #4b5563;
 }
 
-/* ---------- Plain read-only value ---------- */
+// =========================================================
+// PLAIN READ-ONLY VALUE
+// =========================================================
+
 .cartModal__plainValue {
   display: block;
   width: 100%;
@@ -83,19 +245,11 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   word-break: break-word;
   min-height: 1.5rem;
 }
-/* Plain read-only text value displayed in preview mode */
-.cartModal__plainValue {
-  display: block;
-  width: 100%;
-  padding: 0.25rem 0; /* Minimal spacing to keep label-value relationship tight */
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #1f2937; /* Dark, readable text */
-  line-height: 1.5;
-  white-space: pre-wrap; /* Preserve line breaks for addresses */
-  word-break: break-word;
-  min-height: 1.5rem; /* Avoid layout shifts if the value is empty */
-}
+
+// =========================================================
+// PREVIEW MODE LABEL
+// =========================================================
+
 .cartModal__previewModeLabel {
   position: fixed;
   left: 41.5%;
@@ -106,9 +260,9 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   gap: 8px;
   margin: 0 0 12px;
   padding: 6px 14px;
-  background: #ffffff;                 /* white bg */
-  color: #f97316;                      /* orange text */
-  border: 1px solid #f97316;           /* thin orange border */
+  background: #ffffff;
+  color: #f97316;
+  border: 1px solid #f97316;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 600;
@@ -124,21 +278,22 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   background: #f97316;
   box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
 }
-/* =========================================================
-   Refresh states — shared by CartHero and Items in cart
-   ========================================================= */
 
-/* Hero refresh button: loading modifier */
+// =========================================================
+// REFRESH STATES — shared by CartHero and Items in cart
+// =========================================================
+
 .btn--loading {
   cursor: progress;
   opacity: 0.75;
 }
+
 .spinner {
   display: inline-block;
   width: 24px;
   height: 24px;
-  border: 3px solid rgba(205, 121, 19, 0.2); /* Faint version of #cd7913 */
-  border-top-color: #cd7913;                 /* Solid brand color */
+  border: 3px solid rgba(205, 121, 19, 0.2);
+  border-top-color: #cd7913;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   vertical-align: middle;
@@ -149,31 +304,31 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     transform: rotate(360deg);
   }
 }
-/* "Refreshing cart…" inline label in the Items in cart header */
+
 .cartItems__refreshing {
   display: inline-flex;
   align-items: center;
   gap: 0.4em;
-  color: #8a5a1c; /* matches amber accent */
+  color: #8a5a1c;
   font-weight: 500;
 }
 
-/* The list dims and blocks clicks while refreshing */
 .cartList--refreshing {
   opacity: 0.55;
   transition: opacity 150ms ease-out;
   pointer-events: none;
 }
 
-/* Accessibility: respect reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
   .spinner {
     animation: none;
   }
 }
-/* =========================================================
-   HERO
-   ========================================================= */
+
+// =========================================================
+// HERO
+// =========================================================
+
 .cartHero {
   position: relative;
   padding: 5rem 1.25rem 4rem;
@@ -289,9 +444,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   BUTTONS
-   ========================================================= */
+// =========================================================
+// BUTTONS
+// =========================================================
+
 .btn {
   display: inline-flex;
   align-items: center;
@@ -340,9 +496,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   SECTIONS
-   ========================================================= */
+// =========================================================
+// SECTIONS
+// =========================================================
+
 .cartSection {
   max-width: 1200px;
   margin: 0 auto;
@@ -359,9 +516,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   EMPTY STATE
-   ========================================================= */
+// =========================================================
+// EMPTY STATE
+// =========================================================
+
 .cartEmpty {
   background: var(--card);
   border: 1px solid var(--line);
@@ -403,9 +561,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   flex-wrap: wrap;
 }
 
-/* =========================================================
-   ITEMS LIST
-   ========================================================= */
+// =========================================================
+// ITEMS LIST
+// =========================================================
+
 .cartItems {
   &__head {
     display: flex;
@@ -477,9 +636,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   gap: 1rem;
 }
 
-/* =========================================================
-   CART ITEM — Premium 3-column layout
-   ========================================================= */
+// =========================================================
+// CART ITEM — Premium 3-column layout
+// =========================================================
+
 .cartItem {
   position: relative;
   display: block;
@@ -825,13 +985,15 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
       border-color: rgba(176, 0, 32, 0.2);
     }
   }
-  &__perunit{
+
+  &__perunit {
     font-size: .7rem;
     letter-spacing: 0.5px;
     color: var(--muted);
     text-align: center;
     margin-top: 1.5rem;
   }
+
   /* ───────── Sub-items ───────── */
   &__subs {
     list-style: none;
@@ -1101,9 +1263,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   SUB-ITEM row
-   ========================================================= */
+// =========================================================
+// SUB-ITEM row
+// =========================================================
+
 .subItem {
   display: grid;
   grid-template-columns: 40px minmax(0, 1fr) auto auto 28px;
@@ -1324,9 +1487,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   ASIDE
-   ========================================================= */
+// =========================================================
+// ASIDE
+// =========================================================
+
 .cartAside {
   display: flex;
   flex-direction: column;
@@ -1340,9 +1504,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   SUMMARY
-   ========================================================= */
+// =========================================================
+// SUMMARY
+// =========================================================
+
 .cartSummary {
   position: relative;
   isolation: isolate;
@@ -1763,9 +1928,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   MODAL
-   ========================================================= */
+// =========================================================
+// MODAL
+// =========================================================
+
 .cartModal {
   position: fixed;
   inset: 0;
@@ -1790,6 +1956,7 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     padding: 2.25rem 2rem 2rem;
     box-shadow: 0 40px 80px -20px rgba(15, 26, 20, 0.4);
     animation: cartModalPop 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+    outline: none;
 
     &::-webkit-scrollbar {
       width: 8px;
@@ -1950,7 +2117,7 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   &__form {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 0;
   }
 
   &__grid {
@@ -2111,9 +2278,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   TOAST
-   ========================================================= */
+// =========================================================
+// TOAST
+// =========================================================
+
 .cartToast {
   position: fixed;
   bottom: 2rem;
@@ -2140,9 +2308,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   RESPONSIVE NICE-TO-HAVES
-   ========================================================= */
+// =========================================================
+// RESPONSIVE NICE-TO-HAVES
+// =========================================================
+
 @media (max-width: 520px) {
   .cartHero {
     padding: 3rem 1rem 2.5rem;
@@ -2160,9 +2329,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   CATALOG SEARCH
-   ========================================================= */
+// =========================================================
+// CATALOG SEARCH
+// =========================================================
+
 .catalogSearch {
   position: relative;
   display: flex;
@@ -2226,9 +2396,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   CATALOG CHIPS
-   ========================================================= */
+// =========================================================
+// CATALOG CHIPS
+// =========================================================
+
 .catalogChips {
   display: flex;
   flex-wrap: wrap;
@@ -2520,9 +2691,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   LINE-ADD MODAL — parent preview
-   ========================================================= */
+// =========================================================
+// LINE-ADD MODAL — parent preview
+// =========================================================
+
 .lineAddParent {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) auto;
@@ -2597,9 +2769,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   FORM SECTIONS
-   ========================================================= */
+// =========================================================
+// FORM SECTIONS
+// =========================================================
+
 .formSection {
   display: flex;
   flex-direction: column;
@@ -2668,29 +2841,25 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   CHECKBOX — "Same as Site details"
-   ========================================================= */
+// =========================================================
+// CHECKBOX — "Same as Site details"
+// =========================================================
+
 .cartModal__checkbox {
   display: inline-flex;
   align-items: center;
   gap: 0.65rem;
-
   padding: 0.55rem 0.9rem 0.55rem 0.7rem;
-
   background: #fff;
   border: 1.5px solid rgba(205, 121, 19, 0.35);
   border-radius: 999px;
-
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--brand-dark, #b8690f);
   letter-spacing: 0.005em;
-
   cursor: pointer;
   user-select: none;
   position: relative;
-
   transition: border-color 0.2s ease, background 0.2s ease,
     box-shadow 0.2s ease, transform 0.15s ease;
 
@@ -2734,14 +2903,11 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-
   width: 22px;
   height: 22px;
-
   border: 2px solid rgba(205, 121, 19, 0.55);
   border-radius: 6px;
   background: #fff;
-
   color: transparent;
   transition: background 0.18s ease, border-color 0.18s ease,
     color 0.18s ease, transform 0.15s ease;
@@ -2773,9 +2939,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   white-space: nowrap;
 }
 
-/* =========================================================
-   SUCCESS SCREEN
-   ========================================================= */
+// =========================================================
+// SUCCESS SCREEN
+// =========================================================
+
 .quoteSuccess {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 400px;
@@ -3329,9 +3496,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   SweetAlert2 — AMC brand theme
-   ========================================================= */
+// =========================================================
+// SweetAlert2 — AMC brand theme
+// =========================================================
+
 .amc-quote-swal-popup {
   border-radius: 20px !important;
   padding: 2rem 1.75rem 1.5rem !important;
@@ -3365,9 +3533,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   margin-top: 1.5rem !important;
 }
 
-/* =========================================================
-   FILTER BAR
-   ========================================================= */
+// =========================================================
+// FILTER BAR
+// =========================================================
+
 .catalogFilters {
   display: flex;
   align-items: center;
@@ -3383,19 +3552,15 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     display: inline-flex;
     align-items: center;
     gap: 10px;
-
     padding: 10px 16px;
-
     background: #fff;
     border: 1px solid #e6e1d6;
     border-radius: 100px;
-
     font-size: 12px;
     font-weight: 600;
     color: #0e1116;
     cursor: pointer;
     white-space: nowrap;
-
     transition: border-color 0.25s ease, box-shadow 0.25s ease;
 
     &:hover {
@@ -3421,19 +3586,14 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     top: calc(100% + 8px);
     left: 0;
     z-index: 50;
-
     min-width: 240px;
     max-height: 300px;
     overflow-y: auto;
-
     padding: 8px;
-
     background: #fff;
     border: 1px solid #e6e1d6;
     border-radius: 14px;
-
     box-shadow: 0 24px 48px -16px rgba(15, 17, 22, 0.25);
-
     animation: dropdownIn 0.18s ease-out;
   }
 
@@ -3441,14 +3601,11 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     display: flex;
     align-items: center;
     gap: 10px;
-
     padding: 9px 10px;
     border-radius: 8px;
-
     font-size: 13px;
     color: #0e1116;
     cursor: pointer;
-
     transition: background 0.15s ease;
 
     &:hover {
@@ -3483,11 +3640,9 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     width: 100%;
     margin-top: 6px;
     padding: 10px 8px 6px;
-
     background: none;
     border: none;
     border-top: 1px solid #ece7dc;
-
     color: #a8531a;
     font-size: 11px;
     font-weight: 700;
@@ -3513,13 +3668,13 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   SELECTED ITEMS SUMMARY STRIP
-   ========================================================= */
+// =========================================================
+// SELECTED ITEMS SUMMARY STRIP
+// =========================================================
+
 .catalogSelected {
   margin: 0 0 16px;
   padding: 14px 16px;
-
   background: #fdf3e6;
   border: 1px solid rgba(232, 145, 58, 0.28);
   border-radius: 14px;
@@ -3573,7 +3728,6 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     list-style: none;
     margin: 0;
     padding: 0;
-
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -3583,9 +3737,7 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-
       padding: 9px 12px;
-
       background: #fff;
       border-radius: 10px;
     }
@@ -3639,16 +3791,13 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
       width: 22px;
       height: 22px;
       padding: 0;
-
       background: #fdf3e6;
       border: none;
       border-radius: 50%;
-
       color: #a8531a;
       font-size: 14px;
       line-height: 1;
       cursor: pointer;
-
       transition: all 0.2s ease;
 
       &:hover {
@@ -3659,9 +3808,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
 }
 
-/* =========================================================
-   RESPONSIVE
-   ========================================================= */
+// =========================================================
+// RESPONSIVE
+// =========================================================
+
 @media (max-width: 640px) {
   .catalogFilters {
     flex-direction: column;
@@ -3699,86 +3849,10 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
     }
   }
 }
-.cartModal__previewOverlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 60;
-  padding: 1rem;
-}
 
-.cartModal__previewDialog {
-  background: #fff;
-  border-radius: 12px;
-  max-width: 640px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  padding: 1.5rem;
-
-  .cartModal__previewHead h3 {
-    margin: 0 0 .75rem;
-  }
-
-  .cartModal__previewBody section {
-    margin-bottom: 1rem;
-  }
-
-  .cartModal__previewBody h4 {
-    margin: 0 0 .35rem;
-    font-size: .85rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #cd7913;
-  }
-
-  .cartModal__previewBody p {
-    margin: 0;
-    font-size: .9rem;
-    color: #333;
-  }
-
-  .cartModal__previewConfirmed {
-    margin: .75rem 0 0;
-    padding: .6rem .8rem;
-    background: #e8f5ec;
-    color: #1d7a3a;
-    border-radius: 8px;
-    font-size: .9rem;
-  }
-
-  .btn--preview {
-    color: #d77913;
-    background: #fffefe;
-    border-color: var(--line);
-    /* border: 1px solid #dfdfdf; */
-    // background: #eef1f6; color: #23304a; border: 1px solid #d5dbe6;
-    // background: rgba(0, 0, 0, 0.55);
-  }
-
-  .cartModal__previewBody h4 {
-    margin: 0 0 .35rem;
-    font-size: .85rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #cd7913;
-
-  }
-
-}
-
-.cartModal__panel {
-  outline: none;
-}
-
-.cartModal__previewDialog {
-  outline: none;
-}
+// =========================================================
+// PREVIEW OVERLAY / DIALOG
+// =========================================================
 
 .cartModal__previewOverlay {
   position: fixed;
@@ -3799,6 +3873,7 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   max-height: 90vh;
   overflow-y: auto;
   padding: 1.5rem;
+  outline: none;
 }
 
 .cartModal__previewHead h3 {
@@ -3810,12 +3885,18 @@ box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
 }
 
 .cartModal__previewBody h4 {
-   margin: 0 0 .35rem;
-    font-size: .85rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: #cd7913;
+  margin: 0 0 .35rem;
+  font-size: .85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: #cd7913;
+}
+
+.cartModal__previewBody p {
+  margin: 0;
+  font-size: .9rem;
+  color: #333;
 }
 
 .cartModal__previewConfirmed {
