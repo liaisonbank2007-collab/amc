@@ -549,7 +549,14 @@ export default function QuoteModal({
       rows.push(
         <tr key={`item-${item.sr}`}>
           <td>{item.sr}</td>
-          <td>{item.description}</td>
+          <td
+          style={{
+            maxWidth: "250px",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {item.description}
+        </td>
           {/* Description column commented out */}
           {/* <td>{item.subDescription || item.description}</td> */}
           <td>{item.areaQty}</td>
