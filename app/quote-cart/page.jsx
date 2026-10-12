@@ -174,22 +174,28 @@ export default function QuoteCartPage() {
     clearItems();
   }, [clearItems]);
 
-  const handleAddFromCatalog = useCallback(
-    (item) => {
-      addToCart([
-        {
-          ...item,
-          visits: 1,
-          units: 1,
-     selectedDuration: monthsToDurationValue(item.custom_duration_months),
+const handleAddFromCatalog = useCallback(
+  (item) => {
+    // Destructure the API's numeric field out so it doesn't linger in the cart
+    const { custom_duration_months, ...rest } = item;
 
-        },
-      ]);
-      refreshCart();
-      showToast(`Added: ${item.item_name || item.item_code}`);
-    },
-    [refreshCart, showToast]
-  );
+    addToCart([
+      {
+        ...rest,
+        visits: 1,
+        units: 1,
+        // UI selection — always a string from DURATION_OPTIONS
+        selectedDuration: monthsToDurationValue(custom_duration_months),
+        // Keep the raw API value under a different key so it survives
+        // the round-trip when we build the payload.
+        _base_months: Number(custom_duration_months) || 1,
+      },
+    ]);
+    refreshCart();
+    showToast(`Added: ${item.item_name || item.item_code}`);
+  },
+  [refreshCart, showToast]
+);
 
   const handleAddSubItem = useCallback(
     (item) => {
@@ -242,21 +248,20 @@ export default function QuoteCartPage() {
   }, [refreshing, refreshCart]);
 
   // Handle duration change for a cart item
-  const handleDurationChange = useCallback(
-    (itemCode, duration) => {
-      const rawCart = readRawCart();
-      const updatedCart = rawCart.map((item) => {
-        if (item.item_code === itemCode) {
-          return { ...item, custom_duration_months: duration };
-        }
-        return item;
-      });
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
-      refreshCart();
-    },
-    [refreshCart]
-  );
-
+ const handleDurationChange = useCallback(
+  (itemCode, duration) => {
+    const rawCart = readRawCart();
+    const updatedCart = rawCart.map((item) => {
+      if (item.item_code === itemCode) {
+        return { ...item, selectedDuration: duration };
+      }
+      return item;
+    });
+    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
+    refreshCart();
+  },
+  [refreshCart]
+);
   // ★ FIXED: Totals calculation with duration-based discounts
   const {
     subtotal,
@@ -274,29 +279,29 @@ export default function QuoteCartPage() {
     let units = 0;
     let discountTotal = 0;
 
-    const accumulate = (it, parentDuration) => {
-      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
-      if (hasUnitControl(it)) units += Number(it.units) || 1;
+ const accumulate = (it, parentDuration) => {
+  if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+  if (hasUnitControl(it)) units += Number(it.units) || 1;
 
-      // Determine duration: explicit parent duration wins, then item's own
-      const duration = parentDuration || it.custom_duration_months || "12 Months";
+  const duration =
+    parentDuration || it.selectedDuration || "12 Months";
 
-      if (it.rate && it.rate > 0) {
-        const { total, discountAmount } = lineTotal(it, duration);
-        nextSubtotal += total;
-        discountTotal += discountAmount;
-        payable += 1;
-      } else {
-        onRequest += 1;
-      }
-    };
+  if (it.rate && it.rate > 0) {
+    const { total, discountAmount } = lineTotal(it, duration);
+    nextSubtotal += total;
+    discountTotal += discountAmount;
+    payable += 1;
+  } else {
+    onRequest += 1;
+  }
+};
 
-    cart.forEach((it) => {
-      accumulate(it, null);
-      (it.subItems || []).forEach((sub) =>
-        accumulate(sub, it.custom_duration_months || "12 Months")
-      );
-    });
+cart.forEach((it) => {
+  accumulate(it, null);
+  (it.subItems || []).forEach((sub) =>
+    accumulate(sub, it.selectedDuration || "12 Months")
+  );
+});
 
     return {
       subtotal: nextSubtotal,
@@ -328,16 +333,16 @@ export default function QuoteCartPage() {
     let units = 0;
     let discountTotal = 0;
 
-    activeQuoteItems.forEach((it) => {
-      const duration = it.custom_duration_months || "12 Months";
-      if (it.rate && it.rate > 0) {
-        const { total, discountAmount } = lineTotal(it, duration);
-        sub += total;
-        discountTotal += discountAmount;
-      }
-      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
-      if (hasUnitControl(it)) units += Number(it.units) || 1;
-    });
+  activeQuoteItems.forEach((it) => {
+  const duration = it.selectedDuration || "12 Months";
+  if (it.rate && it.rate > 0) {
+    const { total, discountAmount } = lineTotal(it, duration);
+    sub += total;
+    discountTotal += discountAmount;
+  }
+  if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+  if (hasUnitControl(it)) units += Number(it.units) || 1;
+});
 
     return {
       subtotal: sub,
@@ -382,59 +387,54 @@ export default function QuoteCartPage() {
     });
   }, []);
 
-  const buildQuoteItems = useCallback((lines, propertyType = "Commercial") => {
-    const out = [];
-    const allowedCategories = [
-      "Residential",
-      "Commercial",
-      "Industrial",
-      "Other",
-    ];
-    const safeCategory = allowedCategories.includes(propertyType)
-      ? propertyType
-      : "Commercial";
+const buildQuoteItems = useCallback((lines, propertyType = "Commercial") => {
+  const out = [];
+  const allowedCategories = ["Residential", "Commercial", "Industrial", "Other"];
+  const safeCategory = allowedCategories.includes(propertyType)
+    ? propertyType
+    : "Commercial";
 
-    lines.forEach((parent) => {
-      const parentDuration = parent.custom_duration_months || "12 Months";
-      const parentDiscount = getDiscountForDuration(parentDuration);
+  lines.forEach((parent) => {
+    const parentDuration = parent.selectedDuration || "12 Months";
+    const parentDiscount = getDiscountForDuration(parentDuration);
 
-      const pushItem = (it, duration, discount) => {
-        const showVisit = hasVisitControl(it);
-        const showUnit = hasUnitControl(it);
-        const visits = showVisit ? Number(it.visits) || 1 : 1;
-        const units = showUnit ? Number(it.units) || 1 : 1;
+    const pushItem = (it, duration, discount) => {
+      const showVisit = hasVisitControl(it);
+      const showUnit = hasUnitControl(it);
+      const visits = showVisit ? Number(it.visits) || 1 : 1;
+      const units = showUnit ? Number(it.units) || 1 : 1;
 
-        const item = {
-          item_code: it.item_code,
-          category: safeCategory,
-          service: "AMC Charges",
-          amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
-          amc_type: it.amc_type_name || it.amc_type || "",
-          amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
-          amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
-          custom_min_amount: it.custom_min_amount || "",
-          custom_unit: it.custom_unit || " ",
-          qty: units,
-          custom_visit: visits,
-          rate: Number(it.rate) || 0,
-          stock_uom: it.stock_uom || it.uom || "Nos",
-         custom_duration_months: durationValueToMonths(durationValue), // ← numeric
-          custom_discount_percentage: discount,
-        };
-
-        if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
-        out.push(item);
+      const item = {
+        item_code: it.item_code,
+        category: safeCategory,
+        service: "AMC Charges",
+        amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
+        amc_type: it.amc_type_name || it.amc_type || "",
+        amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
+        amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
+        custom_min_amount: it.custom_min_amount || "",
+        custom_unit: it.custom_unit || " ",
+        qty: units,
+        custom_visit: visits,
+        rate: Number(it.rate) || 0,
+        stock_uom: it.stock_uom || it.uom || "Nos",
+        // Numeric months for the API
+        custom_duration_months: durationValueToMonths(duration),
+        custom_discount_percentage: discount,
       };
 
-      pushItem(parent, parentDuration, parentDiscount);
-      (parent.subItems || []).forEach((sub) =>
-        pushItem(sub, parentDuration, parentDiscount)
-      );
-    });
+      if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
+      out.push(item);
+    };
 
-    return out;
-  }, []);
+    pushItem(parent, parentDuration, parentDiscount);
+    (parent.subItems || []).forEach((sub) =>
+      pushItem(sub, parentDuration, parentDiscount)
+    );
+  });
 
+  return out;
+}, []);
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
@@ -448,8 +448,13 @@ export default function QuoteCartPage() {
         );
 
         // For bulk quote, use the first item's duration as the header duration
-        const headerDuration =
-          activeQuoteItems[0]?.custom_duration_months || form.duration || "12 Months";
+const headerDuration =
+  activeQuoteItems[0]?.selectedDuration ||
+  form.duration ||
+  "12 Months";
+
+        const headerDiscount = getDiscountForDuration(headerDuration);
+
 
         const payload = {
           customer_name: form.name.trim(),
@@ -468,7 +473,8 @@ export default function QuoteCartPage() {
           shipping_email: (form.shipping_email || "").trim(),
           remarks: form.notes.trim(),
           property_type: form.property_type,
-          duration: headerDuration,
+        duration: headerDuration,
+        discount_percentage: headerDiscount,
           price_list: form.price_list,
           items: itemsPayload,
         };

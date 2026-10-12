@@ -33,7 +33,7 @@ export default function CartItem({
 }) {
   const displayName = it.item_name || it.item_code;
   const subItems = it.subItems || [];
-  const currentDuration = it.custom_duration_months || "12 Months";
+const currentDuration = it.selectedDuration || "12 Months";
   const { subtotal, discountPercentage, discountAmount, total, hasPayable } =
     lineTotal(it, currentDuration);
   const subCount = subItems.length;

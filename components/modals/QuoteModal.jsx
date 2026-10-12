@@ -1000,36 +1000,7 @@ export default function QuoteModal({
         </div>
       </div>
 
-      <div className={styles.formSection}>
-        <span className={styles.formSection__label}>AMC preferences</span>
-        <div className={styles.cartModal__grid}>
-          <label>
-            <span>Duration</span>
-            <select
-              name="duration"
-              value={form.duration}
-              onChange={handleChange}
-              suppressHydrationWarning
-            >
-              <option value="3 Months">3 Months</option>
-              <option value="6 Months">6 Months</option>
-              <option value="12 Months">12 Months</option>
-            </select>
-          </label>
-          <label className={styles.cartModal__full}>
-            <span>Remarks (optional)</span>
-            <textarea
-              name="notes"
-              rows="2"
-              value={form.notes}
-              onChange={handleChange}
-              placeholder="AMC services required for office premises…"
-              suppressHydrationWarning
-            />
-          </label>
-        </div>
-      </div>
-
+     
       <div className={styles.cartModal__summary}>
         <div>
           <span>Total visits</span>
