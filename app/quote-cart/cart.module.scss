@@ -22,15 +22,15 @@
 /* ---------- Preview Mode Banner ---------- */
 .cartModal__previewBanner {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
   width: 100%;
   padding: 0.75rem 1rem;
   margin-bottom: 1.25rem;
-  background-color: #f0f7ff; /* Soft blue tint */
-  border: 1px solid #c7dcff;
+  background-color: #f8e2bd; /* Soft blue tint */
+  border: 1px solid #b86951;
   border-radius: 10px;
   text-align: center;
 }
@@ -40,27 +40,27 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #2563eb; /* Primary blue */
-  box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+  background-color: var(--brand, #cd7913);
+box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   animation: previewPulse 2s infinite;
 }
 
 @keyframes previewPulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.6);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 60%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 8px rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--brand, #cd7913) 0%, transparent);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand, #cd7913) 0%, transparent);
   }
 }
 
 .cartModal__previewBannerText {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #1e40af; /* Deep blue */
+  color: var(--brand, #cd7913); /* Deep blue */
   letter-spacing: 0.02em;
 }
 
@@ -826,7 +826,8 @@
     }
   }
   &__perunit{
-    font-size: 0.8rem;
+    font-size: .7rem;
+    letter-spacing: 0.5px;
     color: var(--muted);
     text-align: center;
     margin-top: 1.5rem;

@@ -137,7 +137,8 @@ export default function CartItem({
           </button>
           <p className={styles.cartItem__perunit}>
             {it.custom_min_amount} for min <br />
-            {it.custom_unit}/{it.uom || it.stock_uom || "Nos"}
+            {Number(it.custom_unit).toLocaleString("en-IN")}
+            /{it.uom || it.stock_uom || "Nos"}
           </p>
         </div>
       </div>
