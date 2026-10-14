@@ -12,7 +12,12 @@ import React, {
 import Swal from "sweetalert2";
 import { inr, prettyName } from "../../lib/format";
 import { hasVisitControl, hasUnitControl } from "../../lib/visibility";
-import { computeItemAmount, lineTotal } from "../../lib/calculations";
+import {
+  computeItemAmount,
+  lineTotal,
+  getDiscountForDuration,
+  durationValueToMonths,
+} from "../../lib/calculations"; // ✅ FIX: import helpers for duration + discount
 
 const QUOTE_FORM_ID = "quote-form";
 const GUARD_COALESCE_MS = 400;
@@ -74,47 +79,36 @@ function pickNumber(candidates, fallback) {
   return fallback;
 }
 
-/**
- * "Area/Qty" column — displays the Units value from the item service list.
- * Priority: units -> custom_units -> 1
- */
 function resolveAreaQty(item) {
-  return pickNumber(
-    [item?.units, item?.custom_units],
-    1
-  );
+  return pickNumber([item?.units, item?.custom_units], 1);
 }
 
-/**
- * "Visit" column — displays the Visits value from the item service list.
- * Priority: visits -> custom_visit -> 1
- */
 function resolveVisits(item) {
-  return pickNumber(
-    [item?.visits, item?.custom_visit],
-    1
-  );
+  return pickNumber([item?.visits, item?.custom_visit], 1);
 }
 
-/**
- * Units — kept for internal use (e.g. sub-item computation fallbacks).
- */
 function resolveUnits(item) {
   return pickNumber([item?.units, item?.custom_units], 1);
 }
 
-/**
- * Rate per unit — live value from the item.
- */
 function resolveRate(item) {
   return Number(item?.rate) || 0;
 }
 
-/**
- * UOM label — live value from the item.
- */
 function resolveUom(item) {
   return item?.price_uom || item?.uom || item?.stock_uom || "Nos";
+}
+
+/**
+ * ✅ NEW: Effective duration for a row.
+ * Sub-items inherit the parent's selected duration.
+ */
+function resolveDuration(item, parentDuration = null) {
+  return (
+    item?.selectedDuration ||
+    parentDuration ||
+    "12 Months"
+  );
 }
 
 export default function QuoteModal({
@@ -404,8 +398,7 @@ export default function QuoteModal({
   }, []);
 
   /* ------------------------------------------------------------------ *
-   * 9. Memoised preview rows — uses lineTotal(item) so it matches the
-   *    cart line exactly.
+   * 9. ✅ FIXED: preview rows use the item's selected duration.
    * ------------------------------------------------------------------ */
   const previewRows = useMemo(() => {
     return activeQuoteItems.map((it, idx) => {
@@ -420,14 +413,18 @@ export default function QuoteModal({
         parts.push(`${liveUnits} unit${liveUnits > 1 ? "s" : ""}`);
       }
       if (showVisit) {
-        parts.push(
-          `${liveVisits} visit${liveVisits > 1 ? "s" : ""}`
-        );
+        parts.push(`${liveVisits} visit${liveVisits > 1 ? "s" : ""}`);
       }
       parts.push(resolveUom(it));
       if (it.amc_sub_type_name) parts.push(it.amc_sub_type_name);
 
-      const { total, hasPayable } = lineTotal(it);
+      // ✅ FIX: pass the item's selected duration so discounts & multipliers
+      // are computed against the correct term (matches the cart line).
+      const duration = resolveDuration(it);
+      const { total, hasPayable } = lineTotal(it, duration);
+
+      // Optional: show the discount % badge alongside the amount
+      const discountPct = getDiscountForDuration(duration);
 
       return {
         key: `${it.item_code || it.item_name || "item"}-${idx}`,
@@ -437,36 +434,34 @@ export default function QuoteModal({
           .slice(0, 2)
           .toUpperCase(),
         amount: hasPayable ? inr(total, it.currency) : "On request",
+        discountPct,
+        duration,
       };
     });
   }, [activeQuoteItems]);
 
   /* ------------------------------------------------------------------ *
-   * 10. Memoised Quotation Preview Data
+   * 10. ✅ FIXED: Quotation Preview Data
    *
-   * Column mapping — ALL read live from the item service list:
-   *   - "Area/Qty" column  <-- units   (real-time Units from the item)
-   *   - "Visit" column     <-- visits  (real-time Visits from the item)
-   *   - "UOM"              <-- price_uom
-   *   - "Rate"             <-- rate
-   *   - "Amount"           =  lineTotal(item).total
-   *                           (exact same value as the cart's LINE TOTAL)
+   *   - Amount per row = lineTotal(item, item.selectedDuration).total
+   *     which is exactly what the cart's LINE TOTAL renders.
+   *   - Sub-items inherit the parent's duration via resolveDuration.
    * ------------------------------------------------------------------ */
   const quotationData = useMemo(() => {
     let subtotal = 0;
 
     const items = activeQuoteItems.map((item, idx) => {
-      // Area/Qty column -> Units value from the item service list
       const areaQty = resolveAreaQty(item);
-
-      // Visit column -> Visits value from the item service list
       const visit = resolveVisits(item);
-
-      // Rate per unit
       const rate = resolveRate(item);
 
-      // Exact same total the cart renders for this line
-      const { total, hasPayable } = lineTotal(item);
+      // ✅ FIX: use the item's own selected duration (sub-items fall back
+      // to "12 Months" but you can pass a parent duration here if needed).
+      const duration = resolveDuration(item);
+
+      // ✅ FIX: lineTotal now receives the duration, so multiplier and
+      // discount match the cart exactly.
+      const { total, hasPayable } = lineTotal(item, duration);
       const amount = hasPayable ? total : 0;
       subtotal += amount;
 
@@ -482,6 +477,9 @@ export default function QuoteModal({
         visit,
         rate,
         amount,
+        duration,                                       // ✅ keep for reference
+        months: durationValueToMonths(duration),        // ✅ optional display
+        discountPct: getDiscountForDuration(duration),  // ✅ optional display
       };
     });
 
@@ -550,15 +548,13 @@ export default function QuoteModal({
         <tr key={`item-${item.sr}`}>
           <td>{item.sr}</td>
           <td
-          style={{
-            maxWidth: "250px",
-            overflowWrap: "anywhere",
-          }}
-        >
-          {item.description}
-        </td>
-          {/* Description column commented out */}
-          {/* <td>{item.subDescription || item.description}</td> */}
+            style={{
+              maxWidth: "250px",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {item.description}
+          </td>
           <td>{item.areaQty}</td>
           <td>{item.uom}</td>
           <td>{item.visit}</td>
@@ -633,7 +629,7 @@ export default function QuoteModal({
       </tr>
     );
 
-    // Grand Total (In Words) - full width
+    // Grand Total (In Words)
     rows.push(
       <tr
         key="grand-total-words-row"
@@ -652,7 +648,7 @@ export default function QuoteModal({
       </tr>
     );
 
-    // Payment Terms and Conditions - header
+    // Payment Terms and Conditions
     rows.push(
       <tr
         key="payment-terms-header-row"
@@ -671,7 +667,6 @@ export default function QuoteModal({
       </tr>
     );
 
-    // 100% Advance text
     rows.push(
       <tr
         key="payment-terms-text-row"
@@ -731,8 +726,6 @@ export default function QuoteModal({
             <tr>
               <th>Sr No.</th>
               <th>Type Of Services</th>
-              {/* Description column header commented out */}
-              {/* <th>Description</th> */}
               <th>Area/Qty</th>
               <th>UOM</th>
               <th>Visit</th>
@@ -1000,7 +993,6 @@ export default function QuoteModal({
         </div>
       </div>
 
-     
       <div className={styles.cartModal__summary}>
         <div>
           <span>Total visits</span>

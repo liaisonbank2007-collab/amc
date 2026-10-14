@@ -1,7 +1,7 @@
 // components/CartItem.jsx
 "use client";
 
-import React from "react";
+import React, { useState, useCallback } from "react";
 import { inr, prettyName } from "../lib/format";
 import {
   hasVisitControl,
@@ -14,6 +14,10 @@ import {
   getDiscountForDuration,
   getDurationOption,
   durationValueToMonths,
+  getMaxVisits,        // ✅
+  hasVisitCap,         // ✅
+  MIN_DISCOUNT_MONTHS,
+  getDurationOptionsForItem,
 } from "../lib/calculations";
 import QtyStepper from "./QtyStepper";
 import SubItem from "./SubItem";
@@ -33,20 +37,82 @@ export default function CartItem({
 }) {
   const displayName = it.item_name || it.item_code;
   const subItems = it.subItems || [];
-const currentDuration = it.selectedDuration || "12 Months";
+  const currentDuration = it.selectedDuration || "12 Months";
+const durationOptions = getDurationOptionsForItem(it);
   const { subtotal, discountPercentage, discountAmount, total, hasPayable } =
     lineTotal(it, currentDuration);
+
   const subCount = subItems.length;
   const showVisit = hasVisitControl(it);
   const showUnit = hasUnitControl(it);
   const durationOption = getDurationOption(currentDuration);
 
+  // ✅ Cap only when custom_max_visit > 0; otherwise Infinity = "no cap"
+  const capped = hasVisitCap(it);
+  const maxVisits = capped ? getMaxVisits(it, currentDuration) : null;
+
+  const [visitWarning, setVisitWarning] = useState("");
+  const warnTimerRef = React.useRef(null);
+
+  const showVisitWarning = useCallback((msg) => {
+    setVisitWarning(msg);
+    if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
+    warnTimerRef.current = setTimeout(() => setVisitWarning(""), 3000);
+  }, []);
+
+  React.useEffect(
+    () => () => {
+      if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
+    },
+    []
+  );
+
   const handleDurationChange = (e) => {
     const newDuration = e.target.value;
-    if (onDurationChange) {
-      onDurationChange(it.item_code, newDuration);
-    }
+    if (onDurationChange) onDurationChange(it.item_code, newDuration);
   };
+
+  // ✅ When no cap → straight passthrough, no validation
+  const handleVisitsChange = useCallback(
+    (next) => {
+      const n = Number(next) || 1;
+
+      if (!capped) {
+        onVisitsChange?.(it.item_code, n);
+        return;
+      }
+
+      if (n > maxVisits) {
+        showVisitWarning(
+          `Max ${maxVisits} visit${maxVisits > 1 ? "s" : ""} allowed for ` +
+            `${durationValueToMonths(currentDuration)} month duration.`
+        );
+        onVisitsChange?.(it.item_code, maxVisits);
+        return;
+      }
+      onVisitsChange?.(it.item_code, n);
+    },
+    [
+      capped,
+      maxVisits,
+      currentDuration,
+      it.item_code,
+      onVisitsChange,
+      showVisitWarning,
+    ]
+  );
+
+  const handleVisitClamp = useCallback(
+    ({ reason, max }) => {
+      if (!capped) return;                // ✅ no warning when uncapped
+      if (reason !== "max") return;
+      showVisitWarning(
+        `Max ${max} visit${max > 1 ? "s" : ""} allowed for ` +
+          `${durationValueToMonths(currentDuration)} month duration.`
+      );
+    },
+    [capped, currentDuration, showVisitWarning]
+  );
 
   return (
     <li className={styles.cartItem}>
@@ -76,19 +142,36 @@ const currentDuration = it.selectedDuration || "12 Months";
               <div className={styles.cartItem__counts}>
                 {showVisit && (
                   <div className={styles.cartItem__count}>
-                    <span className={styles.cartItem__countLabel}>Visits</span>
+                    <span className={styles.cartItem__countLabel}>
+                      Visits
+                      {capped && (
+                        <em className={styles.cartItem__capBadge}>
+                          max {maxVisits}
+                        </em>
+                      )}
+                    </span>
                     <QtyStepper
                       className={styles.cartItem__qty}
                       value={it.visits || 1}
-                      onChange={(n) => onVisitsChange(it.item_code, n)}
+                      /* ✅ pass max ONLY when capped */
+                      max={capped ? maxVisits : undefined}
+                      onChange={handleVisitsChange}
+                      onClamp={capped ? handleVisitClamp : undefined}
                     />
+                    {visitWarning && (
+                      <span
+                        className={styles.cartItem__warning}
+                        role="alert"
+                      >
+                        {visitWarning}
+                      </span>
+                    )}
                   </div>
                 )}
 
                 {showUnit && (
                   <div className={styles.cartItem__count}>
                     <span className={styles.cartItem__countLabel}>
-                      Units
                       <em className={styles.cartItem__uom}>
                         {it.uom || it.stock_uom || "Nos"}
                       </em>
@@ -103,7 +186,6 @@ const currentDuration = it.selectedDuration || "12 Months";
               </div>
             )}
 
-            {/* Duration selector with discount */}
             <div className={styles.cartItem__duration}>
               <span className={styles.cartItem__countLabel}>
                 Duration
@@ -113,37 +195,49 @@ const currentDuration = it.selectedDuration || "12 Months";
                   </em>
                 )}
               </span>
-              <select
-                className={styles.cartItem__durationSelect}
-                value={currentDuration}
-                onChange={handleDurationChange}
-                aria-label="Select AMC duration"
-              >
-                {DURATION_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label} ({opt.discount}% off)
-                  </option>
-                ))}
-              </select>
+            <select
+  className={styles.cartItem__durationSelect}
+  value={currentDuration}
+  onChange={handleDurationChange}
+  aria-label="Select AMC duration"
+>
+  {durationOptions.map((opt) => {                    // ✅ filtered list
+    const showDiscount =
+      opt.months >= MIN_DISCOUNT_MONTHS && opt.discount > 0;
+    return (
+      <option key={opt.value} value={opt.value}>
+        {opt.label}
+        {showDiscount ? ` (${opt.discount}% off)` : ""}
+      </option>
+    );
+  })}
+</select>
             </div>
 
             <div className={styles.cartItem__price}>
               {hasPayable ? (
                 <>
-                 <span className={styles.cartItem__rate}>
-  {(() => {
-    const parts = [];
-    if (showVisit)
-      parts.push(`${it.visits || 1} visit${(it.visits || 1) > 1 ? "s" : ""}`);
-    if (showUnit)
-      parts.push(`${it.units || 1} unit${(it.units || 1) > 1 ? "s" : ""}`);
-    const months = durationValueToMonths(currentDuration);
-    parts.push(`${months} month${months > 1 ? "s" : ""}`);
-    return parts.join(" × ");
-  })()}
-</span>
+                  <span className={styles.cartItem__rate}>
+                    {(() => {
+                      const parts = [];
+                      if (showVisit)
+                        parts.push(
+                          `${it.visits || 1} visit${
+                            (it.visits || 1) > 1 ? "s" : ""
+                          }`
+                        );
+                      if (showUnit)
+                        parts.push(
+                          `${it.units || 1} unit${
+                            (it.units || 1) > 1 ? "s" : ""
+                          }`
+                        );
+                      const months = durationValueToMonths(currentDuration);
+                      parts.push(`${months} month${months > 1 ? "s" : ""}`);
+                      return parts.join(" × ");
+                    })()}
+                  </span>
 
-                  {/* Show original price + savings when discount is applied */}
                   {discountPercentage > 0 && (
                     <span className={styles.cartItem__savings}>
                       <s>{inr(subtotal, it.currency)}</s>
@@ -181,11 +275,13 @@ const currentDuration = it.selectedDuration || "12 Months";
           >
             Remove
           </button>
-          <p className={styles.cartItem__perunit}>
-            {it.custom_min_amount} for min <br />
-            {Number(it.custom_unit).toLocaleString("en-IN")}
-            /{it.uom || it.stock_uom || "Nos"}
-          </p>
+          {Number(it.custom_min_amount) > 0 && Number(it.custom_unit) > 0 && (
+            <p className={styles.cartItem__perunit}>
+              {it.custom_min_amount} for min <br />
+              {Number(it.custom_unit).toLocaleString("en-IN")}
+              /{it.uom || it.stock_uom || "Nos"}
+            </p>
+          )}
         </div>
       </div>
 
@@ -197,6 +293,7 @@ const currentDuration = it.selectedDuration || "12 Months";
               styles={styles}
               item={s}
               parentCode={it.item_code}
+              parentDuration={currentDuration}
               onVisitsChange={onSubVisitsChange}
               onUnitsChange={onSubUnitsChange}
               onRemove={onRemoveSub}
@@ -233,5 +330,3 @@ const currentDuration = it.selectedDuration || "12 Months";
     </li>
   );
 }
-
-

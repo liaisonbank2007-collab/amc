@@ -15,8 +15,8 @@ import {
   lineTotal,
   getDiscountForDuration,
   DURATION_OPTIONS,
-   monthsToDurationValue,       // ← NEW
-  durationValueToMonths,       // ← NEW (for outbound payload)
+  monthsToDurationValue,
+  durationValueToMonths,
 } from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
@@ -97,7 +97,6 @@ export default function QuoteCartPage() {
   const [search, setSearch] = useState("");
   const [activeTypes, setActiveTypes] = useState([]);
 
-  // ★ NEW: shared refresh state for hero + list
   const [refreshing, setRefreshing] = useState(false);
 
   const showToast = useCallback((msg) => {
@@ -107,20 +106,13 @@ export default function QuoteCartPage() {
 
   useEffect(() => {
     const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
-
-    // Capture current value so we can restore it on cleanup
     const original = document.body.style.overflow;
-
     if (anyModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
-      // No modal open → make sure the body is scrollable again.
       document.body.style.overflow = "";
     }
-
     return () => {
-      // On dependency change or unmount, restore the value that was in
-      // place before this effect ran.
       document.body.style.overflow = original;
     };
   }, [quoteOpen, addOpen, lineAddOpen]);
@@ -174,20 +166,24 @@ export default function QuoteCartPage() {
     clearItems();
   }, [clearItems]);
 
+  // ─────────────────────────────────────────────────────────────────
+  // Seed defaults from API response on first add; user can edit after
+  // ─────────────────────────────────────────────────────────────────
 const handleAddFromCatalog = useCallback(
   (item) => {
-    // Destructure the API's numeric field out so it doesn't linger in the cart
     const { custom_duration_months, ...rest } = item;
+
+    // Robust default: if custom_max_visit is 0/null/undefined/empty → default to 1
+    const rawMaxVisit = Number(item.custom_max_visit);
+    const defaultVisits =
+      Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
 
     addToCart([
       {
         ...rest,
-        visits: 1,
-        units: 1,
-        // UI selection — always a string from DURATION_OPTIONS
+        visits: defaultVisits,
+        units: Number(item.custom_unit) || 1,
         selectedDuration: monthsToDurationValue(custom_duration_months),
-        // Keep the raw API value under a different key so it survives
-        // the round-trip when we build the payload.
         _base_months: Number(custom_duration_months) || 1,
       },
     ]);
@@ -197,25 +193,30 @@ const handleAddFromCatalog = useCallback(
   [refreshCart, showToast]
 );
 
-  const handleAddSubItem = useCallback(
-    (item) => {
-      if (!lineAddParent) return;
-      appendToCartItem(lineAddParent.item_code, {
-        ...item,
-        visits: 1,
-        units: 1,
-      });
-      refreshCart();
-      const refreshed = readRawCart().find(
-        (c) => c.item_code === lineAddParent.item_code
-      );
-      if (refreshed) setLineAddParent(refreshed);
-      showToast(
-        `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
-      );
-    },
-    [lineAddParent, refreshCart, showToast]
-  );
+ const handleAddSubItem = useCallback(
+  (item) => {
+    if (!lineAddParent) return;
+
+    const rawMaxVisit = Number(item.custom_max_visit);
+    const defaultVisits =
+      Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
+
+    appendToCartItem(lineAddParent.item_code, {
+      ...item,
+      visits: defaultVisits,
+      units: Number(item.custom_unit) || 1,
+    });
+    refreshCart();
+    const refreshed = readRawCart().find(
+      (c) => c.item_code === lineAddParent.item_code
+    );
+    if (refreshed) setLineAddParent(refreshed);
+    showToast(
+      `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
+    );
+  },
+  [lineAddParent, refreshCart, showToast]
+);
 
   const handleSubRemove = useCallback(
     (parentCode, subCode) => {
@@ -228,13 +229,10 @@ const handleAddFromCatalog = useCallback(
     [refreshCart, showToast]
   );
 
-  // ★ UPDATED: parent now owns the refresh lifecycle + min-visible delay
   const handleRefreshItems = useCallback(async () => {
     if (refreshing) return;
-
     const MIN_VISIBLE_MS = 400;
     const startedAt = Date.now();
-
     setRefreshing(true);
     try {
       refreshCart();
@@ -247,22 +245,22 @@ const handleAddFromCatalog = useCallback(
     }
   }, [refreshing, refreshCart]);
 
-  // Handle duration change for a cart item
- const handleDurationChange = useCallback(
-  (itemCode, duration) => {
-    const rawCart = readRawCart();
-    const updatedCart = rawCart.map((item) => {
-      if (item.item_code === itemCode) {
-        return { ...item, selectedDuration: duration };
-      }
-      return item;
-    });
-    localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
-    refreshCart();
-  },
-  [refreshCart]
-);
-  // ★ FIXED: Totals calculation with duration-based discounts
+  const handleDurationChange = useCallback(
+    (itemCode, duration) => {
+      const rawCart = readRawCart();
+      const updatedCart = rawCart.map((item) => {
+        if (item.item_code === itemCode) {
+          return { ...item, selectedDuration: duration };
+        }
+        return item;
+      });
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
+      refreshCart();
+    },
+    [refreshCart]
+  );
+
+  // Totals
   const {
     subtotal,
     payableCount,
@@ -279,29 +277,29 @@ const handleAddFromCatalog = useCallback(
     let units = 0;
     let discountTotal = 0;
 
- const accumulate = (it, parentDuration) => {
-  if (hasVisitControl(it)) visits += Number(it.visits) || 1;
-  if (hasUnitControl(it)) units += Number(it.units) || 1;
+    const accumulate = (it, parentDuration) => {
+      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+      if (hasUnitControl(it)) units += Number(it.units) || 1;
 
-  const duration =
-    parentDuration || it.selectedDuration || "12 Months";
+      const duration =
+        parentDuration || it.selectedDuration || "12 Months";
 
-  if (it.rate && it.rate > 0) {
-    const { total, discountAmount } = lineTotal(it, duration);
-    nextSubtotal += total;
-    discountTotal += discountAmount;
-    payable += 1;
-  } else {
-    onRequest += 1;
-  }
-};
+      if (it.rate && it.rate > 0) {
+        const { total, discountAmount } = lineTotal(it, duration);
+        nextSubtotal += total;
+        discountTotal += discountAmount;
+        payable += 1;
+      } else {
+        onRequest += 1;
+      }
+    };
 
-cart.forEach((it) => {
-  accumulate(it, null);
-  (it.subItems || []).forEach((sub) =>
-    accumulate(sub, it.selectedDuration || "12 Months")
-  );
-});
+    cart.forEach((it) => {
+      accumulate(it, null);
+      (it.subItems || []).forEach((sub) =>
+        accumulate(sub, it.selectedDuration || "12 Months")
+      );
+    });
 
     return {
       subtotal: nextSubtotal,
@@ -333,16 +331,16 @@ cart.forEach((it) => {
     let units = 0;
     let discountTotal = 0;
 
-  activeQuoteItems.forEach((it) => {
-  const duration = it.selectedDuration || "12 Months";
-  if (it.rate && it.rate > 0) {
-    const { total, discountAmount } = lineTotal(it, duration);
-    sub += total;
-    discountTotal += discountAmount;
-  }
-  if (hasVisitControl(it)) visits += Number(it.visits) || 1;
-  if (hasUnitControl(it)) units += Number(it.units) || 1;
-});
+    activeQuoteItems.forEach((it) => {
+      const duration = it.selectedDuration || "12 Months";
+      if (it.rate && it.rate > 0) {
+        const { total, discountAmount } = lineTotal(it, duration);
+        sub += total;
+        discountTotal += discountAmount;
+      }
+      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+      if (hasUnitControl(it)) units += Number(it.units) || 1;
+    });
 
     return {
       subtotal: sub,
@@ -387,54 +385,61 @@ cart.forEach((it) => {
     });
   }, []);
 
-const buildQuoteItems = useCallback((lines, propertyType = "Commercial") => {
-  const out = [];
-  const allowedCategories = ["Residential", "Commercial", "Industrial", "Other"];
-  const safeCategory = allowedCategories.includes(propertyType)
-    ? propertyType
-    : "Commercial";
+  const buildQuoteItems = useCallback((lines, propertyType = "Commercial") => {
+    const out = [];
+    const allowedCategories = [
+      "Residential",
+      "Commercial",
+      "Industrial",
+      "Other",
+    ];
+    const safeCategory = allowedCategories.includes(propertyType)
+      ? propertyType
+      : "Commercial";
 
-  lines.forEach((parent) => {
-    const parentDuration = parent.selectedDuration || "12 Months";
-    const parentDiscount = getDiscountForDuration(parentDuration);
+    lines.forEach((parent) => {
+      const parentDuration = parent.selectedDuration || "12 Months";
+      const parentDiscount = getDiscountForDuration(parentDuration);
 
-    const pushItem = (it, duration, discount) => {
-      const showVisit = hasVisitControl(it);
-      const showUnit = hasUnitControl(it);
-      const visits = showVisit ? Number(it.visits) || 1 : 1;
-      const units = showUnit ? Number(it.units) || 1 : 1;
+      const pushItem = (it, duration, discount) => {
+        const showVisit = hasVisitControl(it);
+        const showUnit = hasUnitControl(it);
+        const visits = showVisit ? Number(it.visits) || 1 : 1;
+        const units = showUnit ? Number(it.units) || 1 : 1;
 
-      const item = {
-        item_code: it.item_code,
-        category: safeCategory,
-        service: "AMC Charges",
-        amc_type_id: it.amc_type_id || it.amc_type_name || it.amc_type || "",
-        amc_type: it.amc_type_name || it.amc_type || "",
-        amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
-        amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
-        custom_min_amount: it.custom_min_amount || "",
-        custom_unit: it.custom_unit || " ",
-        qty: units,
-        custom_visit: visits,
-        rate: Number(it.rate) || 0,
-        stock_uom: it.stock_uom || it.uom || "Nos",
-        // Numeric months for the API
-        custom_duration_months: durationValueToMonths(duration),
-        custom_discount_percentage: discount,
+        const item = {
+          item_code: it.item_code,
+          category: safeCategory,
+          service: "AMC Charges",
+          amc_type_id:
+            it.amc_type_id || it.amc_type_name || it.amc_type || "",
+          amc_type: it.amc_type_name || it.amc_type || "",
+          amc_sub_type_id:
+            it.amc_sub_type_id || it.amc_sub_type || "",
+          amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
+          custom_min_amount: it.custom_min_amount || "",
+          custom_unit: it.custom_unit || " ",
+          qty: units,
+          custom_visit: visits,
+          rate: Number(it.rate) || 0,
+          stock_uom: it.stock_uom || it.uom || "Nos",
+          custom_duration_months: durationValueToMonths(duration),
+          custom_discount_percentage: discount,
+        };
+
+        if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
+        out.push(item);
       };
 
-      if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
-      out.push(item);
-    };
+      pushItem(parent, parentDuration, parentDiscount);
+      (parent.subItems || []).forEach((sub) =>
+        pushItem(sub, parentDuration, parentDiscount)
+      );
+    });
 
-    pushItem(parent, parentDuration, parentDiscount);
-    (parent.subItems || []).forEach((sub) =>
-      pushItem(sub, parentDuration, parentDiscount)
-    );
-  });
+    return out;
+  }, []);
 
-  return out;
-}, []);
   const handleSubmit = useCallback(
     async (e) => {
       e.preventDefault();
@@ -447,14 +452,12 @@ const buildQuoteItems = useCallback((lines, propertyType = "Commercial") => {
           form.property_type
         );
 
-        // For bulk quote, use the first item's duration as the header duration
-const headerDuration =
-  activeQuoteItems[0]?.selectedDuration ||
-  form.duration ||
-  "12 Months";
+        const headerDuration =
+          activeQuoteItems[0]?.selectedDuration ||
+          form.duration ||
+          "12 Months";
 
         const headerDiscount = getDiscountForDuration(headerDuration);
-
 
         const payload = {
           customer_name: form.name.trim(),
@@ -473,8 +476,8 @@ const headerDuration =
           shipping_email: (form.shipping_email || "").trim(),
           remarks: form.notes.trim(),
           property_type: form.property_type,
-        duration: headerDuration,
-        discount_percentage: headerDiscount,
+          duration: headerDuration,
+          discount_percentage: headerDiscount,
           price_list: form.price_list,
           items: itemsPayload,
         };
@@ -521,7 +524,9 @@ const headerDuration =
         try {
           data = raw ? JSON.parse(raw) : {};
         } catch {
-          throw new Error("Server returned non-JSON: " + raw.slice(0, 200));
+          throw new Error(
+            "Server returned non-JSON: " + raw.slice(0, 200)
+          );
         }
 
         const msg = data?.message || {};
@@ -663,8 +668,6 @@ const headerDuration =
                 <div className={styles.cartItems__head}>
                   <div>
                     <h2>Items in cart</h2>
-
-                    {/* ★ Swaps to spinner while refreshing */}
                     <p className={styles.cartItems__sub}>
                       {refreshing ? (
                         <span
@@ -672,7 +675,10 @@ const headerDuration =
                           role="status"
                           aria-live="polite"
                         >
-                          <span className={styles.spinner} aria-hidden="true" />
+                          <span
+                            className={styles.spinner}
+                            aria-hidden="true"
+                          />
                           Refreshing cart…
                         </span>
                       ) : (
@@ -705,7 +711,6 @@ const headerDuration =
                   </div>
                 </div>
 
-                {/* ★ List dims + blocks input while refreshing */}
                 <ul
                   className={`${styles.cartList} ${
                     refreshing ? styles["cartList--refreshing"] : ""
@@ -787,7 +792,9 @@ const headerDuration =
             onRemove={(it) =>
               handleSubRemove(lineAddParent.item_code, it.item_code)
             }
-            isAdded={(code) => isSubInParent(lineAddParent.item_code, code)}
+            isAdded={(code) =>
+              isSubInParent(lineAddParent.item_code, code)
+            }
             retry={() => setCatalog([])}
             onClose={() => setLineAddOpen(false)}
           />
