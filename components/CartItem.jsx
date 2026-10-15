@@ -143,7 +143,7 @@ const durationOptions = getDurationOptionsForItem(it);
                 {showVisit && (
                   <div className={styles.cartItem__count}>
                     <span className={styles.cartItem__countLabel}>
-                      Visits
+                      Service
                       {capped && (
                         <em className={styles.cartItem__capBadge}>
                           max {maxVisits}
