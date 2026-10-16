@@ -35,6 +35,74 @@ const API_URL = "/api/frappe/get_amc_items";
 const QUOTE_API = "/api/method/create_amc_quotation";
 const CART_STORAGE_KEY = "amc_cart";
 
+
+const SALES_ORDER_API =
+  "https://liaisonbank.frappe.cloud/api/method/create_sales_order_from_quotation";
+
+async function createSalesOrderFromQuotation(quotationId) {
+  if (!quotationId) {
+    throw new Error("Quotation ID is missing.");
+  }
+
+  const res = await fetch(SALES_ORDER_API, {
+    method: "POST",
+     headers: {
+    Authorization: "token 819b3f5078a36d3:1a585f86efcb3b3",
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  },
+    body: JSON.stringify({
+      quotation: quotationId,
+    }),
+  });
+
+  const raw = await res.text();
+
+  console.log("Sales Order API response:", raw);
+
+  let data = {};
+
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(
+      `Sales Order API returned invalid JSON: ${raw.slice(0, 200)}`
+    );
+  }
+
+  if (!res.ok) {
+    const messages = data?._server_messages;
+
+    let detail =
+      data?.exception ||
+      data?.error ||
+      data?.message ||
+      `HTTP ${res.status}`;
+
+    if (messages) {
+      try {
+        detail = JSON.parse(messages)
+          .map((message) => {
+            try {
+              return JSON.parse(message).message || message;
+            } catch {
+              return message;
+            }
+          })
+          .join("\n");
+      } catch {
+        // Keep the existing error detail.
+      }
+    }
+
+    throw new Error(detail);
+  }
+
+  return data;
+}
+
+
+
 function readRawCart() {
   if (typeof window === "undefined") return [];
   try {
@@ -492,7 +560,7 @@ const handleAddFromCatalog = useCallback(
         });
 
         const raw = await res.text();
-
+        
         if (!res.ok) {
           let detail = `HTTP ${res.status}`;
           try {
@@ -530,6 +598,20 @@ const handleAddFromCatalog = useCallback(
         }
 
         const msg = data?.message || {};
+        
+const quotationId = msg.quotation;
+
+if (!quotationId) {
+  throw new Error(
+    "Quotation was created, but its ID was not returned by the API."
+  );
+}
+
+const salesOrderResponse =
+  await createSalesOrderFromQuotation(quotationId);
+
+console.log("Sales Order created successfully:", salesOrderResponse);
+
         const viewUrl = buildPrintUrl(msg.print_url);
         const pdfUrl = buildPrintUrl(msg.print_url, { download: true });
 
