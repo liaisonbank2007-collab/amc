@@ -1,16 +1,26 @@
 // components/SubItem.jsx
 "use client";
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { inr, prettyName } from "../lib/format";
-import { hasVisitControl, hasUnitControl, hasQtyControls } from "../lib/visibility";
-import { computeItemAmount } from "../lib/calculations";
+import {
+  hasVisitControl,
+  hasUnitControl,
+  hasQtyControls,
+} from "../lib/visibility";
+import {
+  computeItemAmount,
+  getMaxVisits,
+  hasVisitCap,            // ✅
+  durationValueToMonths,
+} from "../lib/calculations";
 import QtyStepper from "./QtyStepper";
 
 export default function SubItem({
   styles,
   item: s,
   parentCode,
+  parentDuration = "12 Months",
   onVisitsChange,
   onUnitsChange,
   onRemove,
@@ -18,6 +28,69 @@ export default function SubItem({
   const sName = s.item_name || s.item_code;
   const sShowVisit = hasVisitControl(s);
   const sShowUnit = hasUnitControl(s);
+
+  // ✅ Sub-item cap inherits the parent's duration
+  const effectiveDuration = s.selectedDuration || parentDuration;
+  const capped = hasVisitCap(s);
+  const maxVisits = capped ? getMaxVisits(s, effectiveDuration) : null;
+
+  const [visitWarning, setVisitWarning] = useState("");
+  const warnTimerRef = React.useRef(null);
+
+  const showVisitWarning = useCallback((msg) => {
+    setVisitWarning(msg);
+    if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
+    warnTimerRef.current = setTimeout(() => setVisitWarning(""), 3000);
+  }, []);
+
+  React.useEffect(
+    () => () => {
+      if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
+    },
+    []
+  );
+
+  const handleVisitsChange = useCallback(
+    (next) => {
+      const n = Number(next) || 1;
+
+      if (!capped) {
+        onVisitsChange?.(parentCode, s.item_code, n);
+        return;
+      }
+
+      if (n > maxVisits) {
+        showVisitWarning(
+          `Max ${maxVisits} visit${maxVisits > 1 ? "s" : ""} allowed for ` +
+            `${durationValueToMonths(effectiveDuration)} month duration.`
+        );
+        onVisitsChange?.(parentCode, s.item_code, maxVisits);
+        return;
+      }
+      onVisitsChange?.(parentCode, s.item_code, n);
+    },
+    [
+      capped,
+      maxVisits,
+      effectiveDuration,
+      s.item_code,
+      parentCode,
+      onVisitsChange,
+      showVisitWarning,
+    ]
+  );
+
+  const handleVisitClamp = useCallback(
+    ({ reason, max }) => {
+      if (!capped) return;
+      if (reason !== "max") return;
+      showVisitWarning(
+        `Max ${max} visit${max > 1 ? "s" : ""} allowed for ` +
+          `${durationValueToMonths(effectiveDuration)} month duration.`
+      );
+    },
+    [capped, effectiveDuration, showVisitWarning]
+  );
 
   return (
     <li className={styles.subItem}>
@@ -35,12 +108,26 @@ export default function SubItem({
         <div className={styles.subItem__counts}>
           {sShowVisit && (
             <div className={styles.subItem__count}>
-              <span className={styles.subItem__countLabel}>Visits</span>
+              <span className={styles.subItem__countLabel}>
+                Visits
+                {capped && (
+                  <em className={styles.subItem__capBadge}>
+                    max {maxVisits}
+                  </em>
+                )}
+              </span>
               <QtyStepper
                 className={styles.subItem__qty}
                 value={s.visits || 1}
-                onChange={(n) => onVisitsChange(parentCode, s.item_code, n)}
+                max={capped ? maxVisits : undefined}
+                onChange={handleVisitsChange}
+                onClamp={capped ? handleVisitClamp : undefined}
               />
+              {visitWarning && (
+                <span className={styles.subItem__warning} role="alert">
+                  {visitWarning}
+                </span>
+              )}
             </div>
           )}
 

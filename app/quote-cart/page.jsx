@@ -10,7 +10,14 @@ import { addToCart, appendToCartItem, removeSubItem } from "@/lib/cart";
 import styles from "./cart.module.scss";
 
 import { hasUnitControl, hasVisitControl } from "../../lib/visibility";
-import { computeItemAmount } from "../../lib/calculations";
+import {
+  computeItemAmount,
+  lineTotal,
+  getDiscountForDuration,
+  DURATION_OPTIONS,
+  monthsToDurationValue,
+  durationValueToMonths,
+} from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
 import useCart from "../../hooks/useCart";
@@ -192,13 +199,11 @@ export default function QuoteCartPage() {
   useEffect(() => {
     const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
     const original = document.body.style.overflow;
-
     if (anyModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
     }
-
     return () => {
       document.body.style.overflow = original;
     };
@@ -253,42 +258,63 @@ export default function QuoteCartPage() {
     clearItems();
   }, [clearItems]);
 
-  const handleAddFromCatalog = useCallback(
-    (item) => {
-      addToCart([{ ...item, visits: 1, units: 1 }]);
-      refreshCart();
-      showToast(`Added: ${item.item_name || item.item_code}`);
-    },
-    [refreshCart, showToast]
-  );
+  // ─────────────────────────────────────────────────────────────────
+  // Seed defaults from API response on first add; user can edit after
+  // ─────────────────────────────────────────────────────────────────
+const handleAddFromCatalog = useCallback(
+  (item) => {
+    const { custom_duration_months, ...rest } = item;
 
-  const handleAddSubItem = useCallback(
-    (item) => {
-      if (!lineAddParent) return;
-      appendToCartItem(lineAddParent.item_code, {
-        ...item,
-        visits: 1,
-        units: 1,
-      });
-      refreshCart();
-      const refreshed = readRawCart().find(
-        (c) => c.item_code === lineAddParent.item_code
-      );
-      if (refreshed) setLineAddParent(refreshed);
-      showToast(
-        `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
-      );
-    },
-    [lineAddParent, refreshCart, showToast]
-  );
+    // Robust default: if custom_max_visit is 0/null/undefined/empty → default to 1
+    const rawMaxVisit = Number(item.custom_max_visit);
+    const defaultVisits =
+      Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
+
+    addToCart([
+      {
+        ...rest,
+        visits: defaultVisits,
+        units: Number(item.custom_unit) || 1,
+        selectedDuration: monthsToDurationValue(custom_duration_months),
+        _base_months: Number(custom_duration_months) || 1,
+      },
+    ]);
+    refreshCart();
+    showToast(`Added: ${item.item_name || item.item_code}`);
+  },
+  [refreshCart, showToast]
+);
+
+ const handleAddSubItem = useCallback(
+  (item) => {
+    if (!lineAddParent) return;
+
+    const rawMaxVisit = Number(item.custom_max_visit);
+    const defaultVisits =
+      Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
+
+    appendToCartItem(lineAddParent.item_code, {
+      ...item,
+      visits: defaultVisits,
+      units: Number(item.custom_unit) || 1,
+    });
+    refreshCart();
+    const refreshed = readRawCart().find(
+      (c) => c.item_code === lineAddParent.item_code
+    );
+    if (refreshed) setLineAddParent(refreshed);
+    showToast(
+      `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
+    );
+  },
+  [lineAddParent, refreshCart, showToast]
+);
 
   const handleSubRemove = useCallback(
     (parentCode, subCode) => {
       removeSubItem(parentCode, subCode);
       refreshCart();
-      const refreshed = readRawCart().find(
-        (c) => c.item_code === parentCode
-      );
+      const refreshed = readRawCart().find((c) => c.item_code === parentCode);
       if (refreshed) setLineAddParent(refreshed);
       showToast("Sub-item removed");
     },
@@ -297,10 +323,8 @@ export default function QuoteCartPage() {
 
   const handleRefreshItems = useCallback(async () => {
     if (refreshing) return;
-
     const MIN_VISIBLE_MS = 400;
     const startedAt = Date.now();
-
     setRefreshing(true);
     try {
       refreshCart();
@@ -313,6 +337,22 @@ export default function QuoteCartPage() {
     }
   }, [refreshing, refreshCart]);
 
+  const handleDurationChange = useCallback(
+    (itemCode, duration) => {
+      const rawCart = readRawCart();
+      const updatedCart = rawCart.map((item) => {
+        if (item.item_code === itemCode) {
+          return { ...item, selectedDuration: duration };
+        }
+        return item;
+      });
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(updatedCart));
+      refreshCart();
+    },
+    [refreshCart]
+  );
+
+  // Totals
   const {
     subtotal,
     payableCount,
@@ -320,20 +360,26 @@ export default function QuoteCartPage() {
     currency,
     totalVisits,
     totalUnits,
+    totalDiscount,
   } = useMemo(() => {
     let nextSubtotal = 0;
     let payable = 0;
     let onRequest = 0;
     let visits = 0;
     let units = 0;
+    let discountTotal = 0;
 
-    const accumulate = (it) => {
+    const accumulate = (it, parentDuration) => {
       if (hasVisitControl(it)) visits += Number(it.visits) || 1;
       if (hasUnitControl(it)) units += Number(it.units) || 1;
 
+      const duration =
+        parentDuration || it.selectedDuration || "12 Months";
+
       if (it.rate && it.rate > 0) {
-        const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
-        nextSubtotal += computeItemAmount(it) * v;
+        const { total, discountAmount } = lineTotal(it, duration);
+        nextSubtotal += total;
+        discountTotal += discountAmount;
         payable += 1;
       } else {
         onRequest += 1;
@@ -341,8 +387,10 @@ export default function QuoteCartPage() {
     };
 
     cart.forEach((it) => {
-      accumulate(it);
-      (it.subItems || []).forEach(accumulate);
+      accumulate(it, null);
+      (it.subItems || []).forEach((sub) =>
+        accumulate(sub, it.selectedDuration || "12 Months")
+      );
     });
 
     return {
@@ -352,6 +400,7 @@ export default function QuoteCartPage() {
       currency: cart[0]?.currency || "INR",
       totalVisits: visits,
       totalUnits: units,
+      totalDiscount: discountTotal,
     };
   }, [cart]);
 
@@ -372,11 +421,14 @@ export default function QuoteCartPage() {
     let sub = 0;
     let visits = 0;
     let units = 0;
+    let discountTotal = 0;
 
     activeQuoteItems.forEach((it) => {
+      const duration = it.selectedDuration || "12 Months";
       if (it.rate && it.rate > 0) {
-        const v = hasVisitControl(it) ? Number(it.visits) || 1 : 1;
-        sub += computeItemAmount(it) * v;
+        const { total, discountAmount } = lineTotal(it, duration);
+        sub += total;
+        discountTotal += discountAmount;
       }
       if (hasVisitControl(it)) visits += Number(it.visits) || 1;
       if (hasUnitControl(it)) units += Number(it.units) || 1;
@@ -388,6 +440,7 @@ export default function QuoteCartPage() {
       totalUnits: units,
       lineCount: activeQuoteItems.length,
       currency: activeQuoteItems[0]?.currency || "INR",
+      totalDiscount: discountTotal,
     };
   }, [activeQuoteItems]);
 
@@ -437,7 +490,10 @@ export default function QuoteCartPage() {
       : "Commercial";
 
     lines.forEach((parent) => {
-      const pushItem = (it) => {
+      const parentDuration = parent.selectedDuration || "12 Months";
+      const parentDiscount = getDiscountForDuration(parentDuration);
+
+      const pushItem = (it, duration, discount) => {
         const showVisit = hasVisitControl(it);
         const showUnit = hasUnitControl(it);
         const visits = showVisit ? Number(it.visits) || 1 : 1;
@@ -450,7 +506,8 @@ export default function QuoteCartPage() {
           amc_type_id:
             it.amc_type_id || it.amc_type_name || it.amc_type || "",
           amc_type: it.amc_type_name || it.amc_type || "",
-          amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
+          amc_sub_type_id:
+            it.amc_sub_type_id || it.amc_sub_type || "",
           amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
           custom_min_amount: it.custom_min_amount || "",
           custom_unit: it.custom_unit || " ",
@@ -458,14 +515,18 @@ export default function QuoteCartPage() {
           custom_visit: visits,
           rate: Number(it.rate) || 0,
           stock_uom: it.stock_uom || it.uom || "Nos",
+          custom_duration_months: durationValueToMonths(duration),
+          custom_discount_percentage: discount,
         };
 
         if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
         out.push(item);
       };
 
-      pushItem(parent);
-      (parent.subItems || []).forEach(pushItem);
+      pushItem(parent, parentDuration, parentDiscount);
+      (parent.subItems || []).forEach((sub) =>
+        pushItem(sub, parentDuration, parentDiscount)
+      );
     });
 
     return out;
@@ -482,6 +543,13 @@ export default function QuoteCartPage() {
           activeQuoteItems,
           form.property_type
         );
+
+        const headerDuration =
+          activeQuoteItems[0]?.selectedDuration ||
+          form.duration ||
+          "12 Months";
+
+        const headerDiscount = getDiscountForDuration(headerDuration);
 
         const payload = {
           customer_name: form.name.trim(),
@@ -500,7 +568,8 @@ export default function QuoteCartPage() {
           shipping_email: (form.shipping_email || "").trim(),
           remarks: form.notes.trim(),
           property_type: form.property_type,
-          duration: form.duration,
+          duration: headerDuration,
+          discount_percentage: headerDiscount,
           price_list: form.price_list,
           items: itemsPayload,
         };
@@ -525,7 +594,9 @@ export default function QuoteCartPage() {
         try {
           data = raw ? JSON.parse(raw) : {};
         } catch {
-          throw new Error("Server returned non-JSON: " + raw.slice(0, 200));
+          throw new Error(
+            "Server returned non-JSON: " + raw.slice(0, 200)
+          );
         }
 
         const msg = data?.message || {};
@@ -701,7 +772,6 @@ export default function QuoteCartPage() {
                 <div className={styles.cartItems__head}>
                   <div>
                     <h2>Items in cart</h2>
-
                     <p className={styles.cartItems__sub}>
                       {refreshing ? (
                         <span
@@ -760,6 +830,7 @@ export default function QuoteCartPage() {
                       onUnitsChange={setUnits}
                       onSubVisitsChange={setSubVisits}
                       onSubUnitsChange={setSubUnits}
+                      onDurationChange={handleDurationChange}
                       onRemove={handleRemove}
                       onRemoveSub={handleSubRemove}
                       onQuote={openItemQuote}
@@ -781,6 +852,7 @@ export default function QuoteCartPage() {
                 onRequestCount={onRequestCount}
                 totalVisits={totalVisits}
                 totalUnits={totalUnits}
+                totalDiscount={totalDiscount}
                 onRequestQuote={openBulkQuote}
               />
             </div>
@@ -824,7 +896,9 @@ export default function QuoteCartPage() {
             onRemove={(it) =>
               handleSubRemove(lineAddParent.item_code, it.item_code)
             }
-            isAdded={(code) => isSubInParent(lineAddParent.item_code, code)}
+            isAdded={(code) =>
+              isSubInParent(lineAddParent.item_code, code)
+            }
             retry={() => setCatalog([])}
             onClose={() => setLineAddOpen(false)}
           />

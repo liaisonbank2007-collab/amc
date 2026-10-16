@@ -7,10 +7,20 @@ export default function QtyStepper({
   value,
   onChange,
   min = 1,
-  max = 100000,
+  max,               // ✅ no default — undefined / null / <=0  ⇒  no cap
   className,
   inputClassName,
+  onClamp,
 }) {
+  // Normalize max: only a finite, positive number counts as a real cap.
+  const effectiveMax = React.useMemo(() => {
+    if (max === undefined || max === null || max === "") return Infinity;
+    const n = Number(max);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : Infinity;
+  }, [max]);
+
+  const hasCap = Number.isFinite(effectiveMax);
+
   const [draft, setDraft] = React.useState(String(value ?? min));
   const [focused, setFocused] = React.useState(false);
 
@@ -23,10 +33,10 @@ export default function QtyStepper({
       if (!Number.isFinite(n)) return min;
       const int = Math.round(n);
       if (int < min) return min;
-      if (int > max) return max;
+      if (hasCap && int > effectiveMax) return effectiveMax;
       return int;
     },
-    [min, max]
+    [min, effectiveMax, hasCap]
   );
 
   const commit = React.useCallback(
@@ -34,20 +44,46 @@ export default function QtyStepper({
       const n = Number(raw);
       const safe = clamp(n);
       setDraft(String(safe));
+
+      // Only notify when a real cap/min actually clamped the value
+      if (Number.isFinite(n) && n !== safe && hasCap) {
+        onClamp?.({
+          requested: n,
+          applied: safe,
+          reason: n > effectiveMax ? "max" : "min",
+          max: effectiveMax,
+          min,
+        });
+      }
+
       if (safe !== value) onChange(safe);
     },
-    [clamp, onChange, value]
+    [clamp, onChange, value, onClamp, effectiveMax, min, hasCap]
   );
 
   const bump = React.useCallback(
     (delta) => {
       const base = Number(draft);
-      const current = Number.isFinite(base) && base > 0 ? base : value || min;
-      const next = clamp(current + delta);
+      const current =
+        Number.isFinite(base) && base > 0 ? base : value || min;
+      const requested = current + delta;
+      const next = clamp(requested);
+
+      // Only notify when a real cap blocked the step
+      if (requested !== next && hasCap) {
+        onClamp?.({
+          requested,
+          applied: next,
+          reason: requested > effectiveMax ? "max" : "min",
+          max: effectiveMax,
+          min,
+        });
+      }
+
       setDraft(String(next));
       onChange(next);
     },
-    [draft, value, min, clamp, onChange]
+    [draft, value, min, effectiveMax, hasCap, clamp, onChange, onClamp]
   );
 
   const timeoutRef = React.useRef(null);
