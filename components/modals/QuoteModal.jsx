@@ -649,35 +649,35 @@ export default function QuoteModal({
     );
 
     // Payment Terms and Conditions
-    rows.push(
-      <tr
-        key="payment-terms-header-row"
-        className={styles.quotationPreview__termsRow}
-      >
-        <td
-          colSpan="7"
-          style={{
-            textAlign: "left",
-            fontWeight: "bold",
-            paddingLeft: "1rem",
-          }}
-        >
-          Payment Terms and Conditions :
-        </td>
-      </tr>
-    );
+    // rows.push(
+    //   <tr
+    //     key="payment-terms-header-row"
+    //     className={styles.quotationPreview__termsRow}
+    //   >
+    //     <td
+    //       colSpan="7"
+    //       style={{
+    //         textAlign: "left",
+    //         fontWeight: "bold",
+    //         paddingLeft: "1rem",
+    //       }}
+    //     >
+    //       Payment Terms and Conditions :
+    //     </td>
+    //   </tr>
+    // );
 
-    rows.push(
-      <tr
-        key="payment-terms-text-row"
-        className={styles.quotationPreview__termsRow}
-      >
-        <td colSpan="7" style={{ textAlign: "left" }}>
-          100% of Advance the total order value shall be payable for
-          confirmation of the work order.
-        </td>
-      </tr>
-    );
+    // rows.push(
+    //   <tr
+    //     key="payment-terms-text-row"
+    //     className={styles.quotationPreview__termsRow}
+    //   >
+    //     <td colSpan="7" style={{ textAlign: "left" }}>
+    //       100% of Advance the total order value shall be payable for
+    //       confirmation of the work order.
+    //     </td>
+    //   </tr>
+    // );
 
     return rows;
   }, [quotationData, styles]);
@@ -728,7 +728,7 @@ export default function QuoteModal({
               <th>Type Of Services</th>
               <th>Area/Qty</th>
               <th>UOM</th>
-              <th>Visit</th>
+              <th>Service</th>
               <th>Rate (Rs)</th>
               <th>Amount (Rs)</th>
             </tr>
@@ -995,7 +995,7 @@ export default function QuoteModal({
 
       <div className={styles.cartModal__summary}>
         <div>
-          <span>Total visits</span>
+          <span>Total service</span>
           <strong>{quoteSummary.totalVisits}</strong>
         </div>
         <div>

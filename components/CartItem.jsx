@@ -84,7 +84,7 @@ const durationOptions = getDurationOptionsForItem(it);
 
       if (n > maxVisits) {
         showVisitWarning(
-          `Max ${maxVisits} visit${maxVisits > 1 ? "s" : ""} allowed for ` +
+          `Max ${maxVisits} service${maxVisits > 1 ? "s" : ""} allowed for ` +
             `${durationValueToMonths(currentDuration)} month duration.`
         );
         onVisitsChange?.(it.item_code, maxVisits);
@@ -107,7 +107,7 @@ const durationOptions = getDurationOptionsForItem(it);
       if (!capped) return;                // ✅ no warning when uncapped
       if (reason !== "max") return;
       showVisitWarning(
-        `Max ${max} visit${max > 1 ? "s" : ""} allowed for ` +
+        `Max ${max} service${max > 1 ? "s" : ""} allowed for ` +
           `${durationValueToMonths(currentDuration)} month duration.`
       );
     },
@@ -130,11 +130,11 @@ const durationOptions = getDurationOptionsForItem(it);
                 "AMC"}
             </span>
             <h3 title={displayName}>{prettyName(displayName)}</h3>
-            <p className={styles.cartItem__meta}>
+            {/* <p className={styles.cartItem__meta}>
               Code {it.item_code} · UOM {it.uom || "Nos"}
               {subCount > 0 &&
                 ` · ${subCount} add-on${subCount > 1 ? "s" : ""}`}
-            </p>
+            </p> */}
           </div>
 
           <div className={styles.cartItem__controls}>
@@ -222,7 +222,7 @@ const durationOptions = getDurationOptionsForItem(it);
                       const parts = [];
                       if (showVisit)
                         parts.push(
-                          `${it.visits || 1} visit${
+                          `${it.visits || 1} service${
                             (it.visits || 1) > 1 ? "s" : ""
                           }`
                         );
