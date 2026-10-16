@@ -43,13 +43,13 @@ export default function CartSummary({
             <span className={styles.cartSummary__statNum}>{totalUnits}</span>
             <span className={styles.cartSummary__statLabel}>Units</span>
           </div>
-          <div className={styles.cartSummary__statDivider} />
+          {/* <div className={styles.cartSummary__statDivider} />
           <div className={styles.cartSummary__stat}>
             <span className={styles.cartSummary__statNum}>
               {payableCount}
             </span>
             <span className={styles.cartSummary__statLabel}>Items</span>
-          </div>
+          </div> */}
           {/* <div className={styles.cartSummary__statDivider} />
           <div className={styles.cartSummary__stat}>
             <span
@@ -117,7 +117,7 @@ export default function CartSummary({
           </span>
         </button>
 
-        <ul className={styles.cartSummary__trust}>
+        {/* <ul className={styles.cartSummary__trust}>
           <li>
             <span className={styles.cartSummary__trustIcon}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -146,7 +146,7 @@ export default function CartSummary({
             </span>
             No payment required to request
           </li>
-        </ul>
+        </ul> */}
       </div>
     </aside>
   );

@@ -60,7 +60,7 @@ export default function CartHero({
   const hasItems = cartLength > 0;
 
   const summaryText = hasItems
-    ? `${cartLength} line${cartLength > 1 ? "s" : ""} · ${totalVisits} visit${
+    ? `${cartLength} line${cartLength > 1 ? "s" : ""} · ${totalVisits} service${
         totalVisits > 1 ? "s" : ""
       } · ${totalUnits} unit${totalUnits > 1 ? "s" : ""} ready to be quoted.`
     : "Your cart is empty. Add AMC services to start building your request.";
@@ -141,7 +141,7 @@ export default function CartHero({
               <span className={styles.cartHero__badgeNum}>
                 {String(totalVisits).padStart(2, "0")}
               </span>
-              <span className={styles.cartHero__badgeLabel}>visits</span>
+              <span className={styles.cartHero__badgeLabel}>service</span>
             </div>
 
             <div className={styles.cartHero__badgeDivider} />
