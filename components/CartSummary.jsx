@@ -36,7 +36,7 @@ export default function CartSummary({
         <div className={styles.cartSummary__stats}>
           <div className={styles.cartSummary__stat}>
             <span className={styles.cartSummary__statNum}>{totalVisits}</span>
-            <span className={styles.cartSummary__statLabel}>Visits</span>
+            <span className={styles.cartSummary__statLabel}>Service</span>
           </div>
           <div className={styles.cartSummary__statDivider} />
           <div className={styles.cartSummary__stat}>
@@ -48,9 +48,9 @@ export default function CartSummary({
             <span className={styles.cartSummary__statNum}>
               {payableCount}
             </span>
-            <span className={styles.cartSummary__statLabel}>Payable</span>
+            <span className={styles.cartSummary__statLabel}>Items</span>
           </div>
-          <div className={styles.cartSummary__statDivider} />
+          {/* <div className={styles.cartSummary__statDivider} />
           <div className={styles.cartSummary__stat}>
             <span
               className={`${styles.cartSummary__statNum} ${
@@ -62,7 +62,7 @@ export default function CartSummary({
               {onRequestCount}
             </span>
             <span className={styles.cartSummary__statLabel}>On request</span>
-          </div>
+          </div> */}
         </div>
 
         <div className={styles.cartSummary__breakdown}>
