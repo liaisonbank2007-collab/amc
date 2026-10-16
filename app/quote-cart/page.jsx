@@ -24,77 +24,14 @@ import AddItemsModal from "../../components/modals/AddItemsModal";
 import LineAddModal from "../../components/modals/LineAddModal";
 import QuoteModal from "../../components/modals/QuoteModal";
 
+// All Frappe calls go through same-origin Next.js proxy routes.
 const API_URL = "/api/frappe/get_amc_items";
 const QUOTE_API = "/api/method/create_amc_quotation";
+const SALES_ORDER_API = "/api/method/create_sales_order_from_quotation";
+
 const CART_STORAGE_KEY = "amc_cart";
 
-
-const SALES_ORDER_API =
-  "https://liaisonbank.frappe.cloud/api/method/create_sales_order_from_quotation";
-
-async function createSalesOrderFromQuotation(quotationId) {
-  if (!quotationId) {
-    throw new Error("Quotation ID is missing.");
-  }
-
-  const res = await fetch(SALES_ORDER_API, {
-    method: "POST",
-     headers: {
-    Authorization: "token 819b3f5078a36d3:1a585f86efcb3b3",
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  },
-    body: JSON.stringify({
-      quotation: quotationId,
-    }),
-  });
-
-  const raw = await res.text();
-
-  console.log("Sales Order API response:", raw);
-
-  let data = {};
-
-  try {
-    data = raw ? JSON.parse(raw) : {};
-  } catch {
-    throw new Error(
-      `Sales Order API returned invalid JSON: ${raw.slice(0, 200)}`
-    );
-  }
-
-  if (!res.ok) {
-    const messages = data?._server_messages;
-
-    let detail =
-      data?.exception ||
-      data?.error ||
-      data?.message ||
-      `HTTP ${res.status}`;
-
-    if (messages) {
-      try {
-        detail = JSON.parse(messages)
-          .map((message) => {
-            try {
-              return JSON.parse(message).message || message;
-            } catch {
-              return message;
-            }
-          })
-          .join("\n");
-      } catch {
-        // Keep the existing error detail.
-      }
-    }
-
-    throw new Error(detail);
-  }
-
-  return data;
-}
-
-
+// ---------- helpers ----------
 
 function readRawCart() {
   if (typeof window === "undefined") return [];
@@ -104,6 +41,93 @@ function readRawCart() {
     return [];
   }
 }
+
+// Turns a Frappe error body into a readable string.
+function parseFrappeError(raw, status) {
+  let detail = `HTTP ${status}`;
+  try {
+    const j = JSON.parse(raw);
+    if (j._server_messages) {
+      const msgs = JSON.parse(j._server_messages);
+      detail = msgs
+        .map((m) => {
+          try {
+            return JSON.parse(m).message || m;
+          } catch {
+            return m;
+          }
+        })
+        .join("\n");
+    } else if (j.exception) {
+      detail = j.exception;
+    } else if (j.error) {
+      detail = j.error;
+    } else if (j.message) {
+      detail =
+        typeof j.message === "string" ? j.message : JSON.stringify(j.message);
+    }
+  } catch {
+    detail = raw?.slice(0, 400) || `HTTP ${status}`;
+  }
+  return detail;
+}
+
+// POST /api/method/create_sales_order_from_quotation with { quotation }.
+// Non-fatal for the caller — returns { ok, name?, error? }.
+async function createSalesOrderFromQuotation(quotationId) {
+  if (!quotationId) {
+    return { ok: false, error: "Quotation ID is missing." };
+  }
+
+  try {
+    const res = await fetch(SALES_ORDER_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ quotation: quotationId }),
+    });
+
+    const ct = res.headers.get("content-type") || "";
+    const raw = await res.text();
+
+    if (!ct.includes("application/json")) {
+      console.error(
+        "[QuoteCartPage] Sales Order: non-JSON response (likely 404 route).\n" +
+          `status=${res.status} content-type=${ct}\n` +
+          `body=${raw.slice(0, 300)}`
+      );
+      return {
+        ok: false,
+        error: `Sales Order endpoint returned ${res.status} (non-JSON).`,
+      };
+    }
+
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      return { ok: false, error: "Sales Order response was not valid JSON." };
+    }
+
+    if (!res.ok) {
+      return { ok: false, error: parseFrappeError(raw, res.status) };
+    }
+
+    const soName =
+      data?.message?.name ||
+      data?.message?.sales_order ||
+      data?.name ||
+      null;
+
+    return { ok: true, name: soName, raw: data };
+  } catch (err) {
+    return { ok: false, error: String(err?.message || err) };
+  }
+}
+
+// ---------- page ----------
 
 export default function QuoteCartPage() {
   const {
@@ -158,7 +182,6 @@ export default function QuoteCartPage() {
   const [search, setSearch] = useState("");
   const [activeTypes, setActiveTypes] = useState([]);
 
-  // ★ NEW: shared refresh state for hero + list
   const [refreshing, setRefreshing] = useState(false);
 
   const showToast = useCallback((msg) => {
@@ -166,25 +189,20 @@ export default function QuoteCartPage() {
     setTimeout(() => setToast(""), 1800);
   }, []);
 
-useEffect(() => {
-  const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
+  useEffect(() => {
+    const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
+    const original = document.body.style.overflow;
 
-  // Capture current value so we can restore it on cleanup
-  const original = document.body.style.overflow;
+    if (anyModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
 
-  if (anyModalOpen) {
-    document.body.style.overflow = "hidden";
-  } else {
-    // No modal open → make sure the body is scrollable again.
-    document.body.style.overflow = "";
-  }
-
-  return () => {
-    // On dependency change or unmount, restore the value that was in
-    // place before this effect ran.
-    document.body.style.overflow = original;
-  };
-}, [quoteOpen, addOpen, lineAddOpen]);
+    return () => {
+      document.body.style.overflow = original;
+    };
+  }, [quoteOpen, addOpen, lineAddOpen]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -277,7 +295,6 @@ useEffect(() => {
     [refreshCart, showToast]
   );
 
-  // ★ UPDATED: parent now owns the refresh lifecycle + min-visible delay
   const handleRefreshItems = useCallback(async () => {
     if (refreshing) return;
 
@@ -488,6 +505,7 @@ useEffect(() => {
           items: itemsPayload,
         };
 
+        // ---------- STEP 1: create quotation ----------
         const res = await fetch(QUOTE_API, {
           method: "POST",
           headers: {
@@ -498,32 +516,9 @@ useEffect(() => {
         });
 
         const raw = await res.text();
-        
+
         if (!res.ok) {
-          let detail = `HTTP ${res.status}`;
-          try {
-            const j = JSON.parse(raw);
-            if (j._server_messages) {
-              const msgs = JSON.parse(j._server_messages);
-              detail = msgs
-                .map((m) => {
-                  try {
-                    const parsed = JSON.parse(m);
-                    return parsed.message || m;
-                  } catch {
-                    return m;
-                  }
-                })
-                .join("\n");
-            } else if (j.exception) {
-              detail = j.exception;
-            } else if (j.error) {
-              detail = j.error;
-            }
-          } catch {
-            detail = raw?.slice(0, 400) || `HTTP ${res.status}`;
-          }
-          throw new Error(detail);
+          throw new Error(parseFrappeError(raw, res.status));
         }
 
         let data = {};
@@ -534,25 +529,21 @@ useEffect(() => {
         }
 
         const msg = data?.message || {};
-        
-const quotationId = msg.quotation;
 
-if (!quotationId) {
-  throw new Error(
-    "Quotation was created, but its ID was not returned by the API."
-  );
-}
+        const quotationId =
+          msg.quotation || msg.name || msg.data?.name || "";
 
-const salesOrderResponse =
-  await createSalesOrderFromQuotation(quotationId);
-
-console.log("Sales Order created successfully:", salesOrderResponse);
+        if (!quotationId) {
+          throw new Error(
+            "Quotation was created, but its ID was not returned by the API."
+          );
+        }
 
         const viewUrl = buildPrintUrl(msg.print_url);
         const pdfUrl = buildPrintUrl(msg.print_url, { download: true });
 
         const quoteInfo = {
-          number: msg.quotation || "",
+          number: quotationId,
           pdfUrl,
           viewUrl,
           grandTotal: msg.grand_total,
@@ -563,6 +554,30 @@ console.log("Sales Order created successfully:", salesOrderResponse);
           shareKey: msg.share_key,
         };
 
+        // ---------- STEP 2: create sales order from quotation ----------
+        // Non-fatal: quotation already exists, so surface a soft warning
+        // on failure instead of aborting the whole submit.
+        const soResult = await createSalesOrderFromQuotation(quotationId);
+
+        if (soResult.ok) {
+          if (soResult.name) {
+            quoteInfo.salesOrder = soResult.name;
+          }
+          console.info(
+            "[QuoteCartPage] Sales Order created:",
+            soResult.name || "(no name returned)"
+          );
+        } else {
+          console.error(
+            "[QuoteCartPage] Sales Order creation failed:",
+            soResult.error
+          );
+          showToast(
+            "Quotation saved, but Sales Order could not be created."
+          );
+        }
+
+        // ---------- STEP 3: update UI ----------
         setCreatedQuote(quoteInfo);
 
         if (quoteItems === null) {
@@ -656,7 +671,7 @@ console.log("Sales Order created successfully:", salesOrderResponse);
     <>
       <AMCNavbar />
       <main className={styles.cartPage}>
-         <CartHero
+        <CartHero
           styles={styles}
           cartLength={cart.length}
           totalVisits={totalVisits}
@@ -672,10 +687,10 @@ console.log("Sales Order created successfully:", salesOrderResponse);
         )}
 
         {!submitted && cart.length === 0 && (
-          <EmptyCart 
-            styles={styles} 
-            onAddItems={() => setAddOpen(true)} 
-            refreshing={refreshing} 
+          <EmptyCart
+            styles={styles}
+            onAddItems={() => setAddOpen(true)}
+            refreshing={refreshing}
           />
         )}
 
@@ -687,7 +702,6 @@ console.log("Sales Order created successfully:", salesOrderResponse);
                   <div>
                     <h2>Items in cart</h2>
 
-                    {/* ★ Swaps to spinner while refreshing */}
                     <p className={styles.cartItems__sub}>
                       {refreshing ? (
                         <span
@@ -731,7 +745,6 @@ console.log("Sales Order created successfully:", salesOrderResponse);
                   </div>
                 </div>
 
-                {/* ★ List dims + blocks input while refreshing */}
                 <ul
                   className={`${styles.cartList} ${
                     refreshing ? styles["cartList--refreshing"] : ""
