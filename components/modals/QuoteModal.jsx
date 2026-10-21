@@ -1039,9 +1039,9 @@ export default function QuoteModal({
         </button>
 
         <div className={styles.cartModal__head}>
-          <span className={styles.cartModal__eyebrow}>
+          {/* <span className={styles.cartModal__eyebrow}>
             {isBulk ? "BULK QUOTE" : "ITEM QUOTE"}
-          </span>
+          </span> */}
           <h2 id={titleId}>
             {isBulk ? (
               <React.Fragment>
@@ -1053,9 +1053,9 @@ export default function QuoteModal({
               </React.Fragment>
             )}
           </h2>
-          <p>
+          {/* <p>
             {isBulk
-              ? `We'll review your ${quoteSummary.totalVisits} visit${
+              ? `We'll review your ${quoteSummary.totalVisits} Service${
                   quoteSummary.totalVisits > 1 ? "s" : ""
                 } and ${quoteSummary.totalUnits} unit${
                   quoteSummary.totalUnits > 1 ? "s" : ""
@@ -1065,7 +1065,7 @@ export default function QuoteModal({
                     activeQuoteItems[0]?.item_code ||
                     ""
                 )}" and get back with a detailed quotation.`}
-          </p>
+          </p> */}
         </div>
 
         {!isViewMode && (

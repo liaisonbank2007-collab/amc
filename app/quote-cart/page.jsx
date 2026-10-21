@@ -35,7 +35,7 @@ import QuoteModal from "../../components/modals/QuoteModal";
 const API_URL = "/api/frappe/get_amc_items";
 const QUOTE_API = "/api/method/create_amc_quotation";
 const SALES_ORDER_API = "/api/method/create_sales_order_from_quotation";
-
+const DEFAULT_SHARE_KEY = "592d628310f9ca4:669d8384d3f1ef5";
 const CART_STORAGE_KEY = "amc_cart";
 
 // ---------- helpers ----------
@@ -93,7 +93,12 @@ async function createSalesOrderFromQuotation(quotationId) {
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({ quotation: quotationId }),
+      body: JSON.stringify({
+        quotation: quotationId,
+
+        share_key: DEFAULT_SHARE_KEY,
+      }),
+
     });
 
     const ct = res.headers.get("content-type") || "";
@@ -102,8 +107,8 @@ async function createSalesOrderFromQuotation(quotationId) {
     if (!ct.includes("application/json")) {
       console.error(
         "[QuoteCartPage] Sales Order: non-JSON response (likely 404 route).\n" +
-          `status=${res.status} content-type=${ct}\n` +
-          `body=${raw.slice(0, 300)}`
+        `status=${res.status} content-type=${ct}\n` +
+        `body=${raw.slice(0, 300)}`
       );
       return {
         ok: false,
@@ -261,54 +266,54 @@ export default function QuoteCartPage() {
   // ─────────────────────────────────────────────────────────────────
   // Seed defaults from API response on first add; user can edit after
   // ─────────────────────────────────────────────────────────────────
-const handleAddFromCatalog = useCallback(
-  (item) => {
-    const { custom_duration_months, ...rest } = item;
+  const handleAddFromCatalog = useCallback(
+    (item) => {
+      const { custom_duration_months, ...rest } = item;
 
-    // Robust default: if custom_max_visit is 0/null/undefined/empty → default to 1
-    const rawMaxVisit = Number(item.custom_max_visit);
-    const defaultVisits =
-      Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
+      // Robust default: if custom_max_visit is 0/null/undefined/empty → default to 1
+      const rawMaxVisit = Number(item.custom_max_visit);
+      const defaultVisits =
+        Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
 
-    addToCart([
-      {
-        ...rest,
+      addToCart([
+        {
+          ...rest,
+          visits: defaultVisits,
+          units: Number(item.custom_unit) || 1,
+          selectedDuration: monthsToDurationValue(custom_duration_months),
+          _base_months: Number(custom_duration_months) || 1,
+        },
+      ]);
+      refreshCart();
+      showToast(`Added: ${item.item_name || item.item_code}`);
+    },
+    [refreshCart, showToast]
+  );
+
+  const handleAddSubItem = useCallback(
+    (item) => {
+      if (!lineAddParent) return;
+
+      const rawMaxVisit = Number(item.custom_max_visit);
+      const defaultVisits =
+        Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
+
+      appendToCartItem(lineAddParent.item_code, {
+        ...item,
         visits: defaultVisits,
         units: Number(item.custom_unit) || 1,
-        selectedDuration: monthsToDurationValue(custom_duration_months),
-        _base_months: Number(custom_duration_months) || 1,
-      },
-    ]);
-    refreshCart();
-    showToast(`Added: ${item.item_name || item.item_code}`);
-  },
-  [refreshCart, showToast]
-);
-
- const handleAddSubItem = useCallback(
-  (item) => {
-    if (!lineAddParent) return;
-
-    const rawMaxVisit = Number(item.custom_max_visit);
-    const defaultVisits =
-      Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
-
-    appendToCartItem(lineAddParent.item_code, {
-      ...item,
-      visits: defaultVisits,
-      units: Number(item.custom_unit) || 1,
-    });
-    refreshCart();
-    const refreshed = readRawCart().find(
-      (c) => c.item_code === lineAddParent.item_code
-    );
-    if (refreshed) setLineAddParent(refreshed);
-    showToast(
-      `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
-    );
-  },
-  [lineAddParent, refreshCart, showToast]
-);
+      });
+      refreshCart();
+      const refreshed = readRawCart().find(
+        (c) => c.item_code === lineAddParent.item_code
+      );
+      if (refreshed) setLineAddParent(refreshed);
+      showToast(
+        `Added to "${lineAddParent.item_name || lineAddParent.item_code}"`
+      );
+    },
+    [lineAddParent, refreshCart, showToast]
+  );
 
   const handleSubRemove = useCallback(
     (parentCode, subCode) => {
@@ -572,10 +577,13 @@ const handleAddFromCatalog = useCallback(
           discount_percentage: headerDiscount,
           price_list: form.price_list,
           items: itemsPayload,
+          share_key: DEFAULT_SHARE_KEY,
         };
 
         // ---------- STEP 1: create quotation ----------
         const res = await fetch(QUOTE_API, {
+       
+
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -816,9 +824,8 @@ const handleAddFromCatalog = useCallback(
                 </div>
 
                 <ul
-                  className={`${styles.cartList} ${
-                    refreshing ? styles["cartList--refreshing"] : ""
-                  }`}
+                  className={`${styles.cartList} ${refreshing ? styles["cartList--refreshing"] : ""
+                    }`}
                   aria-busy={refreshing}
                 >
                   {cart.map((it) => (
