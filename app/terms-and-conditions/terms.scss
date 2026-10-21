@@ -1,0 +1,334 @@
+// ═══════════════════════════════════════════════════════════════════
+// TERMS & CONDITIONS — light maison edition
+// Matches privacy + footer: cream · espresso ink · gold accents · serif
+// ═══════════════════════════════════════════════════════════════════
+
+$cream-50:   #fbf7f0;
+$cream-100:  #f4ecdd;
+
+$gold-700:   #8a5a1c;
+$gold-600:   #b17a24;
+$gold-500:   #c9962f;
+$gold-400:   #d9a844;
+
+$ink-900:    #241b15;
+$ink-700:    #4a3b30;
+$ink-500:    #7a6555;
+
+$text-primary:   $ink-900;
+$text-secondary: $ink-700;
+$text-muted:     $ink-500;
+
+$line:      rgba(138, 90, 28, 0.22);
+$line-soft: rgba(138, 90, 28, 0.12);
+
+// ─── Shell ──────────────────────────────────────────────────────────
+.legal {
+  position: relative;
+  background:
+    radial-gradient(ellipse 60% 40% at 18% 0%, rgba(201, 150, 47, 0.09), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 92% 100%, rgba(201, 150, 47, 0.07), transparent 55%),
+    $cream-50;
+  color: $text-primary;
+  font-family: var(--font-geist-sans, system-ui, -apple-system, sans-serif);
+  min-height: 100vh;
+  padding-bottom: 96px;
+}
+
+.legal-goldline {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    $gold-700 15%,
+    $gold-400 50%,
+    $gold-700 85%,
+    transparent 100%
+  );
+  z-index: 2;
+}
+
+.legal-inner {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 96px 32px 0;
+
+  @media (max-width: 640px) {
+    padding: 64px 20px 0;
+  }
+}
+
+// ─── Breadcrumb ─────────────────────────────────────────────────────
+.legal-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: $text-muted;
+  margin-bottom: 44px;
+
+  a {
+    color: $text-muted;
+    text-decoration: none;
+    transition: color 0.25s ease;
+
+    &:hover { color: $gold-700; }
+  }
+
+  [aria-current="page"] {
+    color: $text-secondary;
+  }
+}
+
+.legal-breadcrumb-sep {
+  color: $gold-600;
+  opacity: 0.7;
+}
+
+// ─── Header ─────────────────────────────────────────────────────────
+.legal-header {
+  text-align: center;
+}
+
+.legal-eyebrow {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: $gold-700;
+  margin-bottom: 20px;
+}
+
+.legal-title {
+  margin: 0 0 28px;
+  font-family: var(--font-serif, "Cormorant Garamond", "Playfair Display", Georgia, serif);
+  font-size: clamp(38px, 6vw, 64px);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  color: $ink-900;
+}
+
+.legal-masthead-rule {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 420px;
+  margin: 0 auto 28px;
+
+  &::before,
+  &::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, $line, transparent);
+  }
+}
+
+.legal-masthead-ornament {
+  padding: 0 18px;
+  font-size: 10px;
+  color: $gold-600;
+  letter-spacing: 0.3em;
+}
+
+.legal-subtitle {
+  margin: 0 auto 22px;
+  max-width: 560px;
+  font-family: var(--font-serif, "Cormorant Garamond", "Playfair Display", Georgia, serif);
+  font-size: 18px;
+  line-height: 1.6;
+  color: $text-secondary;
+
+  em { font-style: italic; }
+
+  @media (max-width: 640px) {
+    font-size: 16px;
+  }
+}
+
+.legal-meta {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: $text-muted;
+}
+
+// ─── Ornamental divider ─────────────────────────────────────────────
+.legal-ornament {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin: 56px 0 48px;
+}
+
+.legal-ornament-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, $line-soft, transparent);
+}
+
+.legal-ornament-mark {
+  font-size: 9px;
+  color: $gold-600;
+  letter-spacing: 0.4em;
+}
+
+// ─── Body ───────────────────────────────────────────────────────────
+.legal-body {
+  font-size: 15.5px;
+  line-height: 1.85;
+  color: $text-secondary;
+
+  section + section {
+    margin-top: 44px;
+  }
+
+  h2 {
+    margin: 0 0 18px;
+    font-family: var(--font-serif, "Cormorant Garamond", "Playfair Display", Georgia, serif);
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.25;
+    letter-spacing: -0.005em;
+    color: $ink-900;
+    position: relative;
+    padding-bottom: 14px;
+
+    &::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 34px;
+      height: 1px;
+      background: linear-gradient(90deg, $gold-600, transparent);
+    }
+
+    @media (max-width: 640px) {
+      font-size: 22px;
+    }
+  }
+
+  p {
+    margin: 0 0 16px;
+
+    &:last-child { margin-bottom: 0; }
+  }
+
+  strong {
+    color: $ink-900;
+    font-weight: 600;
+  }
+
+  ul {
+    margin: 0 0 16px;
+    padding-left: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  li {
+    line-height: 1.75;
+    padding-left: 4px;
+
+    &::marker {
+      color: $gold-600;
+      font-size: 0.85em;
+    }
+  }
+
+  a {
+    color: $gold-700;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(138, 90, 28, 0.3);
+    transition: color 0.25s ease, border-color 0.25s ease;
+
+    &:hover {
+      color: $gold-600;
+      border-bottom-color: $gold-600;
+    }
+  }
+}
+
+// ─── Address block ──────────────────────────────────────────────────
+.legal-address {
+  font-style: normal;
+  font-size: 14.5px;
+  line-height: 1.85;
+  color: $text-secondary;
+  margin-top: 10px;
+  padding: 22px 26px;
+  background: $cream-100;
+  border-left: 2px solid $gold-500;
+
+  strong {
+    display: block;
+    margin-bottom: 6px;
+    font-family: var(--font-serif, "Cormorant Garamond", "Playfair Display", Georgia, serif);
+    font-size: 17px;
+    font-weight: 600;
+    color: $ink-900;
+  }
+
+  a {
+    color: $gold-700;
+  }
+}
+
+// ─── Footer link ────────────────────────────────────────────────────
+.legal-footer {
+  margin-top: 72px;
+  display: flex;
+  justify-content: center;
+}
+
+.legal-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid $line;
+  color: $text-secondary;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: color 0.3s ease, border-color 0.3s ease, background 0.3s ease;
+
+  svg {
+    transition: transform 0.3s ease;
+  }
+
+  &:hover {
+    color: $gold-700;
+    border-color: rgba(138, 90, 28, 0.5);
+    background: rgba(201, 150, 47, 0.08);
+
+    svg { transform: translateX(-3px); }
+  }
+
+  &:focus-visible {
+    outline: 2px solid $gold-500;
+    outline-offset: 3px;
+  }
+}
+
+// ─── Reduced motion ─────────────────────────────────────────────────
+@media (prefers-reduced-motion: reduce) {
+  .legal-breadcrumb a,
+  .legal-body a,
+  .legal-back,
+  .legal-back svg {
+    transition: none;
+  }
+}
