@@ -610,7 +610,7 @@ export default function Page() {
             <div className="floating-amc-pill__icon">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /><circle cx="12" cy="8" r="1.5" /><path d="M12 4.5v1M12 10.5v1M8.5 8h1M14.5 8h1M9.5 5.5l.7.7M13.8 9.8l.7.7M9.5 10.5l.7-.7M13.8 6.2l.7-.7" /></svg>
             </div>
-            <span className="floating-amc-pill__text">AMC Services</span>
+            <span className="floating-amc-pill__text">Added AMC Services</span>
             <span className="floating-amc-pill__badge">{cartCount}</span>
           </Link>
         )}
