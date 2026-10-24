@@ -1045,7 +1045,7 @@ export default function QuoteModal({
           <h2 id={titleId}>
             {isBulk ? (
               <React.Fragment>
-                Quote for <span>all items.</span>
+                Estimation for <span>all items.</span>
               </React.Fragment>
             ) : (
               <React.Fragment>

@@ -9,6 +9,16 @@ const nextConfig = {
     ];
   },
   reactCompiler: true,
+
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "liaisonbank.frappe.cloud",
+        // pathname: "/files/**", // optional: narrow to just the files folder
+      },
+    ],
+  },
 };
 
 export default nextConfig;

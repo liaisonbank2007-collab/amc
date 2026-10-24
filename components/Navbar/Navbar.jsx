@@ -13,7 +13,7 @@ const services = [
   { name: "Fire & FAPA", href: "https://www.liaisonbank.com/our-services/fire-fapa", desc: "Fire safety systems" },
   { name: "PNG", href: "https://www.liaisonbank.com/our-services/png", desc: "Piped natural gas" },
   { name: "Electrical", href: "https://www.liaisonbank.com/our-services/electrical", desc: "Power infrastructure" },
-  { name: "AMC", href: "/amc", desc: "Annual maintenance" },
+  { name: "AMC", href: "https://www.liaisonbank.com/our-services/amc", desc: "Annual maintenance" },
 ];
 
 export default function AMCNavbar() {

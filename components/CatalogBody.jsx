@@ -195,11 +195,11 @@ export default function CatalogBody({
                     <strong title={line.item_name || line.item_code}>
                       {prettyName(line.item_name || line.item_code)}
                     </strong>
-                    <span>
+                    {/* <span>
                       {line.item_code} · Qty {qtyLabel}
                       {subCount > 0 &&
                         ` · ${subCount} add-on${subCount > 1 ? "s" : ""}`}
-                    </span>
+                    </span> */}
                   </div>
                   <div className={styles.catalogSelected__price}>
                     <span>
@@ -275,9 +275,9 @@ export default function CatalogBody({
                   <strong title={displayName}>
                     {prettyName(displayName)}
                   </strong>
-                  <span className={styles.catalogItem__meta}>
+                  {/* <span className={styles.catalogItem__meta}>
                     {it.item_code} · {it.uom || "Nos"}
-                  </span>
+                  </span> */}
                 </div>
                 <div className={styles.catalogItem__price}>
                   {it.rate && it.rate > 0 ? (

@@ -504,6 +504,12 @@ export default function QuoteCartPage() {
         const visits = showVisit ? Number(it.visits) || 1 : 1;
         const units = showUnit ? Number(it.units) || 1 : 1;
 
+
+              // ✅ Recompute using the SAME helper CartItem uses, so the payload
+      //    matches exactly what the user sees in the cart UI.
+      const { subtotal, discountAmount, total, discountPercentage } =
+        lineTotal(it, duration);
+
         const item = {
           item_code: it.item_code,
           category: safeCategory,
@@ -518,10 +524,13 @@ export default function QuoteCartPage() {
           custom_unit: it.custom_unit || " ",
           qty: units,
           custom_visit: visits,
-          rate: Number(it.rate) || 0,
+          // rate: Number(it.rate) || 0,
+          rate: Number(subtotal.toFixed(2)),   // ← line total in place of raw rate
           stock_uom: it.stock_uom || it.uom || "Nos",
-          custom_duration_months: durationValueToMonths(duration),
-          custom_discount_percentage: discount,
+          // custom_duration_months: durationValueToMonths(duration),
+          duration: (duration),
+            // custom_discount_percentage: discount,
+          discount_percentage: discount,
         };
 
         if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
