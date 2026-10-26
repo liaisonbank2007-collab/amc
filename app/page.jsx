@@ -429,7 +429,7 @@ export default function Page() {
 
         {/* ============ INTRO ============ */}
         <section className="amcIntro">
-          <div className="amcIntro__label"><span>01</span><i /><span>Our AMC Services</span></div>
+          {/* <div className="amcIntro__label"><span>01</span><i /><span>Our AMC Services</span></div> */}
           <div className="amcIntro__grid">
             <h2>Maintenance that keeps<em>your operations moving.</em></h2>
             <div className="amcIntro__body">
@@ -454,7 +454,7 @@ export default function Page() {
           {!loading && !error && amcServices.length > 0 && (
             <div className="amcBentoGrid">
               {amcServices.map((service, index) => {
-                const themeClass = index % 2 === 0 ? "amcBentoCard--white" : "amcBentoCard--orange";
+                const themeClass = index % 2 === 0 ? "amcBentoCard--white" : "amcBentoCard--white";
                 const imagesToShow = service.images || [];
 
                 return (
@@ -605,16 +605,42 @@ export default function Page() {
           </div>
         )}
 
-        {cartCount > 0 && (
-          <Link href="/quote-cart" className="floating-amc-pill" aria-label={`View AMC Service Hub - ${cartCount} services selected`}>
-                       <span className="floating-amc-pill__badge">{cartCount}</span>
+       {cartCount > 0 && (
+  <Link href="/quote-cart" className="floating-amc-pill" aria-label={`View AMC Service Hub - ${cartCount} services selected`}>
+    <span className="floating-amc-pill__badge">{cartCount}</span>
+    <span className="floating-amc-pill__text">AMC Services Added</span>
+    <div className="floating-amc-pill__icon">
+      <svg width="226" height="226" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        {/* Bucket Body */}
+        <path d="M8 12L9.5 26C9.7 27.1 10.6 28 11.7 28H20.3C21.4 28 22.3 27.1 22.5 26L24 12H8Z" fill="#EA580C" />
+        {/* Bucket Rim */}
+        <rect x="6" y="10" width="20" height="4" rx="2" fill="#9A3412" />
+        {/* Bucket Handles/Lines */}
+        <path d="M10 17H22" stroke="#FDBA74" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M11 22H21" stroke="#FDBA74" strokeWidth="1.5" strokeLinecap="round" />
+        <path d="M16 12V28" stroke="#FDBA74" strokeWidth="1.5" strokeLinecap="round" />
 
-            <span className="floating-amc-pill__text"> AMC Services Added</span>
-             <div className="floating-amc-pill__icon">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /><circle cx="12" cy="8" r="1.5" /><path d="M12 4.5v1M12 10.5v1M8.5 8h1M14.5 8h1M9.5 5.5l.7.7M13.8 9.8l.7.7M9.5 10.5l.7-.7M13.8 6.2l.7-.7" /></svg>
-            </div>
-          </Link>
-        )}
+        {/* Floating Icons Above Bucket */}
+        {/* Gear */}
+        <g transform="translate(4, 3)">
+          <circle cx="5" cy="5" r="2.5" stroke="#EA580C" strokeWidth="1.5" />
+          <path d="M5 0V1.5M5 8.5V10M0 5H1.5M8.5 5H10M1.5 1.5L2.5 2.5M7.5 7.5L8.5 8.5M1.5 8.5L2.5 7.5M7.5 2.5L8.5 1.5" stroke="#EA580C" strokeWidth="1.5" strokeLinecap="round" />
+        </g>
+
+        {/* Shield + Checkmark */}
+        <g transform="translate(12, 0)">
+          <path d="M5 0L9 2V5.5C9 8.5 5 10.5 5 10.5C5 10.5 1 8.5 1 5.5V2L5 0Z" fill="#EA580C" stroke="#EA580C" strokeWidth="1" />
+          <path d="M3 5L4.5 6.5L7 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </g>
+
+        {/* Wrench */}
+        <g transform="translate(21, 4) rotate(45)">
+          <path d="M3 0C2.44772 0 2 0.447715 2 1V3L0 5C-0.5 5.5 -0.5 6.5 0 7L1 8C1.5 8.5 2.5 8.5 3 8L5 6H7C7.55228 6 8 5.55228 8 5V1C8 0.447715 7.55228 0 7 0H3Z" fill="#EA580C" />
+        </g>
+      </svg>
+    </div>
+  </Link>
+)}
         {toast && <div className={styles.cartToast}>{toast}</div>}
       </main>
     </>

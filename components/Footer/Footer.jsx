@@ -63,11 +63,11 @@ export default function Footer() {
               2023. Headquartered in Mumbai, we provide end-to-end licensing,
               regulatory compliance and project liaisoning services.
             </p>
-            <div className="footer-brand-badges">
+            {/* <div className="footer-brand-badges">
               <span className="footer-badge">Est. 2017</span>
               <span className="footer-badge">Mumbai</span>
               <span className="footer-badge">Licensing · Compliance</span>
-            </div>
+            </div> */}
           </div>
 
           {/* Navigate */}
