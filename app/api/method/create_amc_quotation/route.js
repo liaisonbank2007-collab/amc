@@ -9,7 +9,7 @@ const FRAPPE_URL =
   "https://liaisonbank.frappe.cloud/api/method/create_amc_quotation";
 
 // 👇 HARDCODED TOKEN HERE
-const FRAPPE_AUTH_TOKEN = "token 592d628310f9ca4:669d8384d3f1ef5";
+const FRAPPE_AUTH_TOKEN = "token 592d628310f9ca4:a7f40b20f9cbeb5";
 
 const MAX_BODY_BYTES = 100 * 1024; // 100 KB
 const UPSTREAM_TIMEOUT_MS = 25_000;

@@ -370,3 +370,24 @@ $font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     svg { transform: translateY(-2px); }
   }
 }
+
+.footer-cta-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.footer-cta-btn--secondary {
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+
+  svg {
+    transition: transform 0.25s ease;
+  }
+
+  &:hover svg {
+    transform: translateX(3px);
+  }
+}

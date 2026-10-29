@@ -19,7 +19,7 @@ export async function POST(req) {
         "Content-Type": "application/json",
         Accept: "application/json",
         // 👇 HARDCODED AUTH HEADER
-        Authorization: "token 592d628310f9ca4:669d8384d3f1ef5", 
+        Authorization: "token 592d628310f9ca4:a7f40b20f9cbeb5", 
       },
       body: JSON.stringify(body),
       cache: "no-store",

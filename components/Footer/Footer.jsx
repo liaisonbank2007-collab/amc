@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 
 import "./footer.scss";
+import { openEnquiryModal } from "@/lib/enquiryModal";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -27,15 +28,33 @@ export default function Footer() {
               <em>delivered with precision.</em>
             </h4>
           </div>
-          <Link
-            href="https://www.liaisonbank.com/contact-us-liaison-bank"
-            className="footer-cta-btn"
-          >
-            <span>Speak with our team</span>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </Link>
+          <div className="footer-cta-actions">
+            <button
+              type="button"
+              className="footer-cta-btn footer-cta-btn--secondary"
+              onClick={openEnquiryModal}
+            >
+              <span>Enquiry Now</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M5 12h14M13 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+            <Link
+              href="https://www.liaisonbank.com/contact-us-liaison-bank"
+              className="footer-cta-btn"
+            >
+              <span>Speak with our team</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </Link>
+          </div>
         </div>
       </div>
 
