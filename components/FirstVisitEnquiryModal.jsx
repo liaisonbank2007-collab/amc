@@ -88,7 +88,7 @@ export default function FirstVisitEnquiryModal() {
         </button>
 
         <div className="fvm__inner">
-          <span className="fvm__eyebrow">Welcome to Liaison Bank</span>
+          {/* <span className="fvm__eyebrow">Welcome to Liaison Bank</span> */}
           <h2 id="fvm-title" className="fvm__title">
             Tell us what you need.<br />
             <em>We&apos;ll take it from there.</em>

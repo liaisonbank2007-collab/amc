@@ -72,6 +72,7 @@ $font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     transition: color 0.2s ease;
   }
 
+  /* Base styles for standard inputs, selects, textareas */
   input,
   select,
   textarea {
@@ -114,6 +115,79 @@ $font-sans:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
   }
 
+  /* ─────────────────────────────────────────────
+     Custom Phone Input Wrapper (Editable Country Code)
+     ───────────────────────────────────────────── */
+  .enquiry-phone-wrapper {
+    display: flex;
+    align-items: stretch;
+    background: $white;
+    border: 1.5px solid $hairline-soft;
+    border-radius: 6px;
+    
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    overflow: hidden;
+
+    /* Hover state matching other inputs */
+    &:hover:not(:focus-within) {
+      border-color: rgba(242, 101, 34, 0.3);
+    }
+
+    /* Focus state matching other inputs */
+    &:focus-within {
+      border-color: $orange;
+      box-shadow: 0 0 0 4px $orange-glow;
+    }
+
+    /* Error state matching other inputs */
+    &:has(input[aria-invalid="true"]) {
+      border-color: $error;
+      background: $error-bg;
+
+      &:focus-within {
+        box-shadow: 0 0 0 4px rgba(192, 57, 43, 0.12);
+      }
+    }
+
+    /* Editable Country Code Dropdown */
+    .enquiry-phone-code {
+      width: auto;
+    //   min-width: 85px;
+      border: none !important;
+      box-shadow: none !important;
+      background-color: $paper !important;
+      border-right: 1.5px solid $hairline-soft !important;
+      border-radius: 0;
+      padding: 0 28px 0 14px;
+      font-size: 14px;
+      font-weight: 600;
+      color: $ink-soft;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      /* Custom arrow for the country dropdown */
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none'><path d='M6 9l6 6 6-6' stroke='%236b5344' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") !important;
+      background-repeat: no-repeat !important;
+      background-position: right 8px center !important;
+
+      &:focus {
+        outline: none;
+      }
+    }
+
+    /* Reset the input so the wrapper handles the styling */
+    input {
+      border: none !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      border-radius: 0;
+      padding-left: 12px;
+      
+      &:focus {
+        outline: none;
+      }
+    }
+  }
   /* focus highlight on label when input focused */
   &:focus-within label {
     color: $orange-deep;
