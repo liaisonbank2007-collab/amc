@@ -23,6 +23,37 @@ const QUOTE_FORM_ID = "quote-form";
 const GUARD_COALESCE_MS = 400;
 const FIRST_EDITABLE_FIELD_NAME = "name";
 
+
+
+/* ------------------------------------------------------------------ *
+ * Pincode → City/State lookup (India Post public API, no key needed)
+ * ------------------------------------------------------------------ */
+const PIN_API = "https://api.postalpincode.in/pincode/";
+
+async function fetchPincodeDetails(pincode) {
+  if (!/^[1-9][0-9]{5}$/.test(String(pincode || "").trim())) {
+    return { ok: false, reason: "invalid" };
+  }
+  try {
+    const res = await fetch(`${PIN_API}${pincode}`);
+    if (!res.ok) return { ok: false, reason: "network" };
+    const data = await res.json();
+    const first = Array.isArray(data) ? data[0] : null;
+    if (!first || first.Status !== "Success" || !first.PostOffice?.length) {
+      return { ok: false, reason: "notfound" };
+    }
+    const po = first.PostOffice[0];
+    return {
+      ok: true,
+      city: po.District || po.Block || po.Name || "",
+      state: po.State || "",
+      country: po.Country || "India",
+    };
+  } catch {
+    return { ok: false, reason: "network" };
+  }
+}
+
 /* ------------------------------------------------------------------ *
  * Number to Words (Indian System)
  * ------------------------------------------------------------------ */
@@ -126,6 +157,21 @@ export default function QuoteModal({
 }) {
   const [isViewMode, setIsViewMode] = useState(false);
 
+  // Pincode auto-fetch state
+const [pinLookup, setPinLookup] = useState({
+  billing: { loading: false, error: "" },
+  shipping: { loading: false, error: "" },
+});
+
+// Track manual edits so auto-fill never clobbers user-typed values
+const manualCityStateRef = useRef({
+  billing: { city: false, state: false },
+  shipping: { city: false, state: false },
+});
+
+// Track last pincode we successfully resolved (prevents re-fetch loop)
+const lastPinRef = useRef({ billing: "", shipping: "" });
+
   const panelRef = useRef(null);
   const previouslyFocusedRef = useRef(null);
   const swalOpenRef = useRef(false);
@@ -134,6 +180,91 @@ export default function QuoteModal({
   const raf2Ref = useRef(0);
 
   const titleId = useId();
+
+
+
+
+
+  /* ------------------------------------------------------------------ *
+ * 4b. Auto-fetch City/State from Pincode (billing + shipping)
+ * ------------------------------------------------------------------ */
+useEffect(() => {
+  if (isViewMode) return;
+  if (!onChange) return;
+
+  const run = async (which, pincode, prefix) => {
+    const pin = String(pincode || "").trim();
+
+    // Reset if not a valid 6-digit pin
+    if (!/^[1-9][0-9]{5}$/.test(pin)) {
+      setPinLookup((s) => ({ ...s, [which]: { loading: false, error: "" } }));
+      lastPinRef.current[which] = "";
+      return;
+    }
+
+    // Already resolved this exact pincode — skip
+    if (lastPinRef.current[which] === pin) return;
+
+    setPinLookup((s) => ({ ...s, [which]: { loading: true, error: "" } }));
+
+    const result = await fetchPincodeDetails(pin);
+
+    if (!result.ok) {
+      setPinLookup((s) => ({
+        ...s,
+        [which]: {
+          loading: false,
+          error:
+            result.reason === "notfound"
+              ? "Pincode not found"
+              : "Could not fetch details",
+        },
+      }));
+      lastPinRef.current[which] = "";
+      return;
+    }
+
+    lastPinRef.current[which] = pin;
+    setPinLookup((s) => ({ ...s, [which]: { loading: false, error: "" } }));
+
+    // Only fill fields the user hasn't manually overridden
+    const manual = manualCityStateRef.current[which];
+    const patch = {};
+    if (!manual.city && result.city) {
+      patch[`${prefix}city`] = result.city;
+    }
+    if (!manual.state && result.state) {
+      patch[`${prefix}state`] = result.state;
+    }
+
+   // Apply city and state individually through the parent onChange handler
+if (!manual.city && result.city) {
+  onChange({
+    target: {
+      name: `${prefix}city`,
+      value: result.city,
+    },
+  });
+}
+
+if (!manual.state && result.state) {
+  onChange({
+    target: {
+      name: `${prefix}state`,
+      value: result.state,
+    },
+  });
+}
+  };
+
+  const t = window.setTimeout(() => {
+    run("billing", form.pincode, "");
+    run("shipping", form.shipping_pincode, "shipping_");
+  }, 500); // debounce
+
+  return () => window.clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [form.pincode, form.shipping_pincode, isViewMode]);
 
   /* ------------------------------------------------------------------ *
    * 1. Focus management + body scroll lock
@@ -341,13 +472,29 @@ export default function QuoteModal({
   /* ------------------------------------------------------------------ *
    * 6. Form change handlers
    * ------------------------------------------------------------------ */
+  // const handleChange = useCallback(
+  //   (e) => {
+  //     if (guardViewMode(e)) return;
+  //     onChange?.(e);
+  //   },
+  //   [guardViewMode, onChange]
+  // );
+
+
   const handleChange = useCallback(
-    (e) => {
-      if (guardViewMode(e)) return;
-      onChange?.(e);
-    },
-    [guardViewMode, onChange]
-  );
+  (e) => {
+    if (guardViewMode(e)) return;
+
+    const name = e?.target?.name;
+    if (name === "city") manualCityStateRef.current.billing.city = true;
+    if (name === "state") manualCityStateRef.current.billing.state = true;
+    if (name === "shipping_city") manualCityStateRef.current.shipping.city = true;
+    if (name === "shipping_state") manualCityStateRef.current.shipping.state = true;
+
+    onChange?.(e);
+  },
+  [guardViewMode, onChange]
+);
 
   const handleSameAsSiteToggle = useCallback(
     (e) => {
@@ -804,75 +951,91 @@ export default function QuoteModal({
       <div className={styles.formSection}>
         <span className={styles.formSection__label}>Billing details</span>
         <div className={styles.cartModal__grid}>
-          <label className={styles.cartModal__full}>
-            <span>Service Address *</span>
-            <textarea
-              name="address"
-              rows="2"
-              value={form.address}
-              onChange={handleChange}
-              placeholder="Building, street, area"
-              autoComplete="street-address"
-              required
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>City *</span>
-            <input
-              type="text"
-              name="city"
-              value={form.city}
-              onChange={handleChange}
-              placeholder="Mumbai"
-              autoComplete="address-level2"
-              required
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>State *</span>
-            <input
-              type="text"
-              name="state"
-              value={form.state}
-              onChange={handleChange}
-              placeholder="Maharashtra"
-              autoComplete="address-level1"
-              required
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Pincode *</span>
-            <input
-              type="text"
-              name="pincode"
-              value={form.pincode}
-              onChange={handleChange}
-              placeholder="400069"
-              inputMode="numeric"
-              autoComplete="postal-code"
-              pattern="[0-9]{4,10}"
-              required
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Property Type</span>
-            <select
-              name="property_type"
-              value={form.property_type}
-              onChange={handleChange}
-              suppressHydrationWarning
-            >
-              <option value="Commercial">Commercial</option>
-              <option value="Residential">Residential</option>
-              <option value="Industrial">Industrial</option>
-              <option value="Institutional">Institutional</option>
-            </select>
-          </label>
-        </div>
+  <label className={styles.cartModal__full}>
+    <span>Service Address *</span>
+    <textarea
+      name="address"
+      rows="2"
+      value={form.address}
+      onChange={handleChange}
+      placeholder="Building, street, area"
+      autoComplete="street-address"
+      required
+      suppressHydrationWarning
+    />
+  </label>
+
+  {/* Pincode FIRST — triggers auto-fetch of City & State */}
+  <label>
+    <span>
+      Pincode *
+      {pinLookup.billing.loading && (
+        <small style={{ marginLeft: 8, opacity: 0.7 }}>fetching…</small>
+      )}
+    </span>
+    <input
+      type="text"
+      name="pincode"
+      value={form.pincode}
+      onChange={handleChange}
+      placeholder="400069"
+      inputMode="numeric"
+      autoComplete="postal-code"
+      pattern="[0-9]{4,10}"
+      maxLength={6}
+      required
+      suppressHydrationWarning
+    />
+    {pinLookup.billing.error && (
+      <small style={{ color: "#c0392b", marginTop: 4, display: "block" }}>
+        {pinLookup.billing.error}
+      </small>
+    )}
+  </label>
+
+  <label>
+    <span>City *</span>
+    <input
+      type="text"
+      name="city"
+      value={form.city}
+      onChange={handleChange}
+      placeholder="Mumbai"
+      autoComplete="address-level2"
+      required
+      suppressHydrationWarning
+    />
+  </label>
+
+  <label>
+    <span>State *</span>
+    <input
+      type="text"
+      name="state"
+      value={form.state}
+      onChange={handleChange}
+      placeholder="Maharashtra"
+      autoComplete="address-level1"
+      required
+      suppressHydrationWarning
+    />
+  </label>
+
+  <label>
+    <span>Property Type</span>
+    <select
+      name="property_type"
+      value={form.property_type}
+      onChange={handleChange}
+      suppressHydrationWarning
+    >
+      <option value="Commercial">Commercial</option>
+      <option value="Residential">Residential</option>
+      <option value="Industrial">Industrial</option>
+      <option value="Institutional">Institutional</option>
+    </select>
+  </label>
+</div>
       </div>
 
       <div className={styles.formSection}>
@@ -903,94 +1066,111 @@ export default function QuoteModal({
             </span>
           </label>
         </div>
-        <div className={styles.cartModal__grid}>
-          <label className={styles.cartModal__full}>
-            <span>Shipping Address *</span>
-            <textarea
-              name="shipping_address"
-              rows="2"
-              value={form.shipping_address}
-              onChange={handleChange}
-              placeholder="Building, street, area"
-              autoComplete="shipping street-address"
-              required
-              disabled={shippingLocked}
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Shipping City *</span>
-            <input
-              type="text"
-              name="shipping_city"
-              value={form.shipping_city}
-              onChange={handleChange}
-              placeholder="Mumbai"
-              autoComplete="shipping address-level2"
-              required
-              disabled={shippingLocked}
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Shipping Email *</span>
-            <input
-              type="email"
-              name="shipping_email"
-              value={form.shipping_email}
-              onChange={handleChange}
-              placeholder="you@company.com"
-              autoComplete="shipping email"
-              required
-              disabled={shippingLocked}
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Shipping Mobile *</span>
-            <input
-              type="tel"
-              name="shipping_mobile"
-              value={form.shipping_mobile}
-              onChange={handleChange}
-              placeholder="+91 98765 43210"
-              autoComplete="shipping tel"
-              required
-              disabled={shippingLocked}
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Shipping State *</span>
-            <input
-              type="text"
-              name="shipping_state"
-              value={form.shipping_state}
-              onChange={handleChange}
-              placeholder="Maharashtra"
-              autoComplete="shipping address-level1"
-              required
-              disabled={shippingLocked}
-              suppressHydrationWarning
-            />
-          </label>
-          <label>
-            <span>Shipping Pincode *</span>
-            <input
-              type="text"
-              name="shipping_pincode"
-              value={form.shipping_pincode}
-              onChange={handleChange}
-              placeholder="400069"
-              inputMode="numeric"
-              autoComplete="shipping postal-code"
-              pattern="[0-9]{4,10}"
-              required
-              disabled={shippingLocked}
-              suppressHydrationWarning
-            />
-          </label>
-        </div>
+       <div className={styles.cartModal__grid}>
+  <label className={styles.cartModal__full}>
+    <span>Shipping Address *</span>
+    <textarea
+      name="shipping_address"
+      rows="2"
+      value={form.shipping_address}
+      onChange={handleChange}
+      placeholder="Building, street, area"
+      autoComplete="shipping street-address"
+      required
+      disabled={shippingLocked}
+      suppressHydrationWarning
+    />
+  </label>
+
+  {/* Pincode FIRST — triggers auto-fetch of City & State */}
+  <label>
+    <span>
+      Shipping Pincode *
+      {pinLookup.shipping.loading && (
+        <small style={{ marginLeft: 8, opacity: 0.7 }}>fetching…</small>
+      )}
+    </span>
+    <input
+      type="text"
+      name="shipping_pincode"
+      value={form.shipping_pincode}
+      onChange={handleChange}
+      placeholder="400069"
+      inputMode="numeric"
+      autoComplete="shipping postal-code"
+      pattern="[0-9]{4,10}"
+      maxLength={6}
+      required
+      disabled={shippingLocked}
+      suppressHydrationWarning
+    />
+    {pinLookup.shipping.error && (
+      <small style={{ color: "#c0392b", marginTop: 4, display: "block" }}>
+        {pinLookup.shipping.error}
+      </small>
+    )}
+  </label>
+
+  <label>
+    <span>Shipping City *</span>
+    <input
+      type="text"
+      name="shipping_city"
+      value={form.shipping_city}
+      onChange={handleChange}
+      placeholder="Mumbai"
+      autoComplete="shipping address-level2"
+      required
+      disabled={shippingLocked}
+      suppressHydrationWarning
+    />
+  </label>
+
+  <label>
+    <span>Shipping State *</span>
+    <input
+      type="text"
+      name="shipping_state"
+      value={form.shipping_state}
+      onChange={handleChange}
+      placeholder="Maharashtra"
+      autoComplete="shipping address-level1"
+      required
+      disabled={shippingLocked}
+      suppressHydrationWarning
+    />
+  </label>
+
+  <label>
+    <span>Shipping Email *</span>
+    <input
+      type="email"
+      name="shipping_email"
+      value={form.shipping_email}
+      onChange={handleChange}
+      placeholder="you@company.com"
+      autoComplete="shipping email"
+      required
+      disabled={shippingLocked}
+      suppressHydrationWarning
+    />
+  </label>
+
+  <label>
+    <span>Shipping Mobile *</span>
+    <input
+      type="tel"
+      name="shipping_mobile"
+      value={form.shipping_mobile}
+      onChange={handleChange}
+      placeholder="+91 98765 43210"
+      autoComplete="shipping tel"
+      required
+      disabled={shippingLocked}
+      suppressHydrationWarning
+    />
+  </label>
+</div>
       </div>
 
       <div className={styles.cartModal__summary}>

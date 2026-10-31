@@ -26,7 +26,7 @@ const INITIAL = {
   countryCode: "+91", // Default country code
   phone: "",
   company: "",
-  service: "",
+  service: [],
   message: "",
 };
 
@@ -120,12 +120,35 @@ export default function EnquiryForm({ onSuccess }) {
       next.phone = "Please enter a valid phone number.";
     }
 
-    if (!form.service) next.service = "Please select a service.";
-    if (!form.message.trim()) next.message = "Please tell us about your requirement.";
+if (!form.service.length) next.service = "Please select at least one service.";
+if (!form.message.trim()) next.message = "Please tell us about your requirement.";
 
     setErrors(next);
     return Object.keys(next).length === 0;
   };
+
+
+
+  const updateMulti = (field) => (e) => {
+  const values = Array.from(e.target.selectedOptions, (opt) => opt.value);
+
+  setForm((prev) => ({
+    ...prev,
+    [field]: values,
+  }));
+
+  setErrors((prev) => ({
+    ...prev,
+    [field]: undefined,
+  }));
+
+  setServerError("");
+
+  if (status === "error") {
+    setStatus("idle");
+  }
+};
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,7 +171,7 @@ export default function EnquiryForm({ onSuccess }) {
         email_id: form.email.trim(),
         enquiry_details: form.message.trim(),
         type_of_services: ["AMC"],
-        amc_type: [form.service],
+        amc_type: form.service,
         form_source: "AMC Enquiry Form",
       };
 
@@ -170,7 +193,7 @@ export default function EnquiryForm({ onSuccess }) {
       }
 
       setStatus("success");
-      setForm({ ...INITIAL }); // Reset form to default (+91)
+      setForm({ ...INITIAL, service: [] });
       setErrors({});
       setServerError("");
 
@@ -321,32 +344,48 @@ export default function EnquiryForm({ onSuccess }) {
         </div>
 
         {/* Service */}
-        <div className="enquiry-field enquiry-field--full">
-          <label htmlFor="enq-service">
-            Service of interest <span className="req">*</span>
-          </label>
-          <select
-            id="enq-service"
-            name="service"
-            value={form.service}
-            onChange={update("service")}
-            aria-invalid={!!errors.service}
-            aria-describedby={errors.service ? "enq-service-error" : undefined}
-          >
-            <option value="">Select a service…</option>
-            {SERVICES.map((service) => (
-              <option key={service} value={service}>
-                {service}
-              </option>
-            ))}
-          </select>
-          {errors.service && (
-            <span id="enq-service-error" className="enquiry-error">
-              {errors.service}
-            </span>
-          )}
-        </div>
-
+  {/* Service — multi-select via checkboxes */}
+<div className="enquiry-field enquiry-field--full">
+  <span id="enq-service-label" className="enquiry-label">
+    Service of interest <span className="req">*</span>
+  </span>
+  <div
+    className="enquiry-checkboxes"
+    role="group"
+    aria-labelledby="enq-service-label"
+    aria-invalid={!!errors.service}
+    aria-describedby={errors.service ? "enq-service-error" : undefined}
+  >
+    {SERVICES.map((service) => (
+      <label key={service} className="enquiry-checkbox">
+        <input
+          type="checkbox"
+          name="service"
+          value={service}
+          checked={form.service.includes(service)}
+          onChange={(e) => {
+            const { checked, value } = e.target;
+            setForm((prev) => ({
+              ...prev,
+              service: checked
+                ? [...prev.service, value]
+                : prev.service.filter((s) => s !== value),
+            }));
+            setErrors((prev) => ({ ...prev, service: undefined }));
+            setServerError("");
+            if (status === "error") setStatus("idle");
+          }}
+        />
+        <span>{service}</span>
+      </label>
+    ))}
+  </div>
+  {errors.service && (
+    <span id="enq-service-error" className="enquiry-error">
+      {errors.service}
+    </span>
+  )}
+</div>
         {/* Message */}
         <div className="enquiry-field enquiry-field--full">
           <label htmlFor="enq-message">

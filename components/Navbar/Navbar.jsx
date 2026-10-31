@@ -84,6 +84,12 @@ export default function AMCNavbar() {
     setMobileServicesOpen(false);
   };
 
+    const scrollToTop = () => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
   // ---------- 🔒 Cart guard ----------
   const handleCartClick = (e) => {
     e.preventDefault();
@@ -106,8 +112,15 @@ export default function AMCNavbar() {
       <div className="an__mobileInner">
         <span className="an__mobileLabel">NAVIGATION</span>
 
-        <Link href="/" className="an__mobileLink" onClick={closeAll}>
-          <span>01</span>
+<Link
+  href="/"
+  className="an__mobileLink"
+  onClick={() => {
+    closeAll();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }}
+  scroll={false}
+>          <span>01</span>
           Home
           <b aria-hidden="true">↗</b>
         </Link>
