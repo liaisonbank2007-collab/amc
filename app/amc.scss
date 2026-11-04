@@ -400,8 +400,8 @@
   &__text {
     background: var(--white);
     border-radius: 50%;
-    width: 130px;
-    height: 130px;
+    width: 180px;
+    height: 180px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -440,7 +440,7 @@
     &__centerInner strong { font-size: 11px; }
     &__item { width: 150px; gap: 8px; }
     &__icon { width: 48px; height: 48px; svg { width: 20px; height: 20px; } }
-    &__text { width: 115px; height: 115px; padding: 10px; }
+    &__text { width: 180px; height: 180px; padding: 10px; }
     &__text strong { font-size: 11px; }
     &__text p { font-size: 8.5px; }
   }
@@ -875,6 +875,132 @@
     .amcBentoCard__media { background: rgba(0, 0, 0, 0.12); }
     .amcBentoCard__imgWrap { background: rgba(0, 0, 0, 0.12); color: rgba(255,255,255,0.6); }
   }
+}
+
+/* ---- FLIP MECHANICS (applies to the media half) ---- */
+.amcBentoCard__flipInner {
+  position: relative;
+  width: 42%;            /* Reduced width slightly to give text more room */
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 280px;     /* Adjusted height */
+  border-radius: 16px;
+  perspective: 1200px;
+  cursor: pointer;
+  outline: none;
+
+  &:focus-visible {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+}
+
+.amcBentoCard__face {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* FRONT — clean icon tile */
+.amcBentoCard__face--front {
+  transform: rotateY(0deg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff; /* Clean crisp white */
+  border: 1px solid rgba(232, 145, 58, 0.15); /* Subtle warm border */
+}
+
+/* BACK — image */
+.amcBentoCard__face--back {
+  transform: rotateY(180deg);
+  background: #e0d8cd;
+}
+
+/* Flip when toggled */
+.amcBentoCard__flipInner.is-flipped {
+  .amcBentoCard__face--front { transform: rotateY(-180deg); }
+  .amcBentoCard__face--back  { transform: rotateY(0deg); }
+}
+
+/* Icon styling */
+.amcBentoCard__icon {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fdf3e6; /* Warm soft background */
+  color: var(--accent-3); /* Deep orange icon */
+  border: 1px dashed rgba(232, 145, 58, 0.4);
+  transition: all 0.5s var(--ease);
+
+  svg {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+/* Hover state for the icon */
+.amcBentoCard__flipInner:hover .amcBentoCard__icon {
+  transform: scale(1.08) rotate(-4deg);
+  background: var(--accent);
+  color: var(--white);
+  border-color: var(--accent);
+  border-style: solid;
+  box-shadow: 0 10px 20px -5px rgba(232, 145, 58, 0.4);
+}
+
+/* Flip hint chip */
+.amcBentoCard__flipHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--accent-3);
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: absolute;
+  bottom: 16px;
+
+  &--back {
+    right: 16px;
+    background: rgba(14, 17, 22, 0.65);
+    color: #fff;
+  }
+}
+
+/* Image fills the back face */
+.amcBentoCard__img {
+  object-fit: cover;
+  transition: transform 0.6s var(--ease);
+  &:hover { transform: scale(1.04); }
+}
+
+.amcBentoCard__placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #8a7b6b;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  svg { opacity: 0.5; }
 }
 
 @media (max-width: 900px) {

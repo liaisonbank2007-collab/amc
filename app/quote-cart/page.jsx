@@ -520,7 +520,8 @@ export default function QuoteCartPage() {
           amc_sub_type_id:
             it.amc_sub_type_id || it.amc_sub_type || "",
           amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
-          custom_min_amount: it.custom_min_amount || "",
+          // custom_min_amount: it.custom_min_amount || "",
+          custom_min_amount: Math.trunc(Number(it.custom_min_amount) || 0),
           custom_unit: it.custom_unit || " ",
           qty: units,
           custom_visit: visits,

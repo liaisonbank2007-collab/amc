@@ -26,6 +26,20 @@ const process = [
   { number: "04", title: "Reports & Support", text: "Maintenance reports are provided with recommendations and ongoing support." },
 ];
 
+const iconByTitle = (keyword) =>
+  coreDivisions.find((d) => new RegExp(keyword, "i").test(d.title))?.icon;
+
+const getServiceIcon = (title = "") => {
+  const t = title.toLowerCase();
+  if (/licen[cs]e|renew|permit/.test(t)) return iconByTitle("license");
+  if (/png|gas|pipeline|leak/.test(t))   return iconByTitle("png");
+  if (/fire|safety/.test(t))             return iconByTitle("fire");
+  if (/electr|audit/.test(t))            return iconByTitle("electrical");
+  if (/pest/.test(t))                    return iconByTitle("pest");
+  if (/water|tank/.test(t))              return iconByTitle("water");
+  return genericServiceIcon;
+};
+
 const benefits = [
   {
     number: "1",
@@ -375,6 +389,10 @@ function AnimatedCoreDivisions() {
   );
 }
 
+
+
+
+
 /* =========================================================
    CATALOG BODY
    ========================================================= */
@@ -495,6 +513,18 @@ export default function Page() {
   const [activeTypes, setActiveTypes] = useState([]);
   const [toast, setToast] = useState("");
   const originalOverflowRef = useRef(null);
+
+
+  const [flippedCards, setFlippedCards] = useState(() => new Set());
+
+const toggleFlip = useCallback((id) => {
+  setFlippedCards((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+}, []);
 
   const handleOpenAddModal = useCallback(() => {
     if (!isUserLoggedIn()) {
@@ -810,75 +840,112 @@ export default function Page() {
           </div>
         </section>
 
-        {/* ============ SERVICES (BENTO BOX) ============ */}
-        <section className="amcServices" id="services">
-          <header className="amcServices__header">
-            <div>
-              <span className="amcTag">What We Maintain</span>
-              <h2>Annual Maintenance <em>Contracts</em></h2>
+{/* ============ SERVICES (BENTO BOX) ============ */}
+<section className="amcServices" id="services">
+  <header className="amcServices__header">
+    <div>
+      <span className="amcTag">What We Maintain</span>
+      <h2>Annual Maintenance <em>Contracts</em></h2>
+    </div>
+  </header>
+
+  {loading && <div className="amcState"><span className="amcState__dot" />Loading services…</div>}
+  {error && !loading && <div className="amcState amcState--error">Unable to load AMC services. Please try again later.</div>}
+  {!loading && !error && amcServices.length === 0 && <div className="amcState">No AMC services available.</div>}
+
+ {!loading && !error && amcServices.length > 0 && (
+  <div className="amcBentoGrid">
+    {amcServices.map((service, index) => {
+      const themeClass = "amcBentoCard--white";
+      const icon = getServiceIcon(service.title);
+      const firstImage = service.images?.[0];
+      const isFlipped = flippedCards.has(service.id);
+
+      return (
+        <article
+          key={service.id}
+          id={service.id}
+          className={`amcBentoCard ${themeClass}`}
+        >
+          {/* ---- FLIP CONTAINER ---- */}
+          <div
+            className={`amcBentoCard__flipInner ${isFlipped ? "is-flipped" : ""}`}
+            onClick={() => toggleFlip(service.id)}
+            role="button"
+            tabIndex={0}
+            aria-pressed={isFlipped}
+            aria-label={`${isFlipped ? "Hide" : "Show"} image for ${service.title}`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                toggleFlip(service.id);
+              }
+            }}
+          >
+            {/* ---- FRONT: ICON ---- */}
+            <div className="amcBentoCard__face amcBentoCard__face--front">
+              <div className="amcBentoCard__iconWrap">
+                <div className="amcBentoCard__icon">{icon}</div>
+              </div>
+              {/* <span className="amcBentoCard__flipHint">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                </svg>
+                View image
+              </span> */}
             </div>
-          </header>
 
-          {loading && <div className="amcState"><span className="amcState__dot" />Loading services…</div>}
-          {error && !loading && <div className="amcState amcState--error">Unable to load AMC services. Please try again later.</div>}
-          {!loading && !error && amcServices.length === 0 && <div className="amcState">No AMC services available.</div>}
-
-          {!loading && !error && amcServices.length > 0 && (
-            <div className="amcBentoGrid">
-              {amcServices.map((service, index) => {
-                const themeClass = index % 2 === 0 ? "amcBentoCard--white" : "amcBentoCard--white";
-                const imagesToShow = service.images || [];
-
-                return (
-                  <article key={service.id} id={service.id} className={`amcBentoCard ${themeClass}`}>
-
-                    <div className={`amcBentoCard__media amcBentoCard__media--count-${Math.min(Math.max(imagesToShow.length, 1), 4)}`}>
-                      {imagesToShow.length > 0 ? (
-                        imagesToShow.slice(0, 4).map((imgSrc, imgIndex) => (
-                          <div key={imgIndex} className="amcBentoCard__imgWrap">
-                            <Image
-                              src={imgSrc}
-                              alt={`${service.title} - view ${imgIndex + 1}`}
-                              fill
-                              sizes="(max-width: 768px) 100vw, 25vw"
-                              className="amcBentoCard__img"
-                              style={{ objectFit: "cover" }}
-                            />
-                          </div>
-                        ))
-                      ) : (
-                        <div className="amcBentoCard__imgWrap amcBentoCard__placeholder">
-                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                            <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                            <polyline points="21 15 16 10 5 21"></polyline>
-                          </svg>
-                          <span>No Image</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="amcBentoCard__content">
-                      <span className="amcBentoCard__tag">AMC</span>
-                      <h3 className="amcBentoCard__title">
-                        <Link href={service.href}>{service.title}</Link>
-                      </h3>
-                      <p className="amcBentoCard__text">{service.description}</p>
-
-                      <div className="amcBentoCard__actions">
-                        <Link href={service.href} className="amcBentoCard__btn">
-                          Explore
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                        </Link>
-                      </div>
-                    </div>
-
-                  </article>
-                );
-              })}
+            {/* ---- BACK: IMAGE (or placeholder) ---- */}
+            <div className="amcBentoCard__face amcBentoCard__face--back">
+              {firstImage ? (
+                <Image
+                  src={firstImage}
+                  alt={`${service.title} visual`}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="amcBentoCard__img"
+                  style={{ objectFit: "cover" }}
+                />
+              ) : (
+                <div className="amcBentoCard__placeholder">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                    <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                    <polyline points="21 15 16 10 5 21"></polyline>
+                  </svg>
+                  <span>No Image</span>
+                </div>
+              )}
+              <span className="amcBentoCard__flipHint amcBentoCard__flipHint--back">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2v6h-6M3 12a9 9 0 0 1 15-6.7L21 8M3 22v-6h6M21 12a9 9 0 0 1-15 6.7L3 16" />
+                </svg>
+                Back
+              </span>
             </div>
-          )}
-        </section>
+          </div>
+
+          {/* ---- CONTENT (outside the flip so it stays put) ---- */}
+          <div className="amcBentoCard__content">
+            <span className="amcBentoCard__tag">AMC</span>
+            <h3 className="amcBentoCard__title">
+              <Link href={service.href}>{service.title}</Link>
+            </h3>
+            <p className="amcBentoCard__text">{service.description}</p>
+
+            <div className="amcBentoCard__actions">
+              <Link href={service.href} className="amcBentoCard__btn">
+                Explore
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </Link>
+            </div>
+          </div>
+        </article>
+      );
+    })}
+  </div>
+)}
+</section>
 
         {/* ============ BENEFITS (SLANTED DESIGN) ============ */}
         <section className="amcBenefitsNew">

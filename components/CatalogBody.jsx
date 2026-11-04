@@ -46,13 +46,16 @@ export default function CatalogBody({
     );
   };
 
-  const selectedTotal = selectedLines.reduce(
-    (sum, line) => sum + lineTotal(line).total,
-    0
-  );
-  const hasSelectedTotal = selectedLines.some(
-    (line) => lineTotal(line).hasPayable
-  );
+  // Calculate total dynamically by passing the specific line's selected duration
+  const selectedTotal = selectedLines.reduce((sum, line) => {
+    const { total } = lineTotal(line, line.selectedDuration);
+    return sum + total;
+  }, 0);
+
+  const hasSelectedTotal = selectedLines.some((line) => {
+    const { hasPayable } = lineTotal(line, line.selectedDuration);
+    return hasPayable;
+  });
 
   return (
     <>
@@ -72,12 +75,7 @@ export default function CatalogBody({
                     ? activeTypes[0]
                     : `${activeTypes.length} types selected`}
               </span>
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 12 12"
-                aria-hidden="true"
-              >
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
                 <path
                   d="M2.5 4.5 6 8l3.5-3.5"
                   stroke="currentColor"
@@ -183,7 +181,8 @@ export default function CatalogBody({
           </div>
           <ul className={styles.catalogSelected__list}>
             {selectedLines.map((line) => {
-              const { total, hasPayable } = lineTotal(line);
+              // FIX: Pass line.selectedDuration so the price correctly matches the cart
+              const { total, hasPayable } = lineTotal(line, line.selectedDuration);
               const subCount = (line.subItems || []).length;
               const qtyLabel = hasUnitControl(line)
                 ? line.units || 1
@@ -195,11 +194,12 @@ export default function CatalogBody({
                     <strong title={line.item_name || line.item_code}>
                       {prettyName(line.item_name || line.item_code)}
                     </strong>
-                    {/* <span>
-                      {line.item_code} · Qty {qtyLabel}
+                    <span>
+                      {qtyLabel} {hasUnitControl(line) ? "Units" : "Qty"}
                       {subCount > 0 &&
                         ` · ${subCount} add-on${subCount > 1 ? "s" : ""}`}
-                    </span> */}
+                      {line.selectedDuration && ` · ${line.selectedDuration}`}
+                    </span>
                   </div>
                   <div className={styles.catalogSelected__price}>
                     <span>
@@ -209,9 +209,7 @@ export default function CatalogBody({
                       <button
                         type="button"
                         onClick={() => onRemove(line)}
-                        aria-label={`Remove ${
-                          line.item_name || line.item_code
-                        }`}
+                        aria-label={`Remove ${line.item_name || line.item_code}`}
                       >
                         ×
                       </button>
@@ -235,23 +233,17 @@ export default function CatalogBody({
         {catalogError && !catalogLoading && (
           <div className={styles.catalogState}>
             <p>{catalogError}</p>
-            <button
-              type="button"
-              className={styles.catalogRetry}
-              onClick={retry}
-            >
+            <button type="button" className={styles.catalogRetry} onClick={retry}>
               Retry
             </button>
           </div>
         )}
 
-        {!catalogLoading &&
-          !catalogError &&
-          filteredCatalog.length === 0 && (
-            <div className={styles.catalogState}>
-              <p>No items match your search.</p>
-            </div>
-          )}
+        {!catalogLoading && !catalogError && filteredCatalog.length === 0 && (
+          <div className={styles.catalogState}>
+            <p>No items match your search.</p>
+          </div>
+        )}
 
         {!catalogLoading &&
           !catalogError &&
@@ -272,12 +264,7 @@ export default function CatalogBody({
                   <span className={styles.catalogItem__tag}>
                     {it.amc_sub_type_name || it.amc_type_name || "AMC"}
                   </span>
-                  <strong title={displayName}>
-                    {prettyName(displayName)}
-                  </strong>
-                  {/* <span className={styles.catalogItem__meta}>
-                    {it.item_code} · {it.uom || "Nos"}
-                  </span> */}
+                  <strong title={displayName}>{prettyName(displayName)}</strong>
                 </div>
                 <div className={styles.catalogItem__price}>
                   {it.rate && it.rate > 0 ? (
