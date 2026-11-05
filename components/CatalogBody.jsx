@@ -400,10 +400,10 @@ const derivedSectors = React.useMemo(() => {
                   {displayName.slice(0, 2).toUpperCase()}
                 </div>
                 <div className={styles.catalogItem__info}>
-                  <span className={styles.catalogItem__tag}>
+                  {/* <span className={styles.catalogItem__tag}>
                     {it.amc_sub_type_name || it.amc_type_name || "AMC"}
-                  </span>
-                  {/* <strong title={displayName}>{prettyName(displayName)}</strong> */}
+                  </span> */}
+                  <strong title={displayName}>{prettyName(displayName)}</strong>
                 </div>
                 <div className={styles.catalogItem__price}>
                   {it.rate && it.rate > 0 ? (
