@@ -13,8 +13,6 @@ const CART_EVENT = "amc-cart-updated";
 
 /**
  * Bring a persisted cart entry up to the current schema.
- * Returns the migrated item, or the original reference if no change
- * was needed (so callers can cheaply detect "changed").
  */
 function migrateItem(it) {
   const needsMigration =
@@ -39,10 +37,6 @@ function migrateItem(it) {
   return migrated;
 }
 
-/**
- * Migrate an entire stored cart in one pass. Returns
- * { cart, changed } so the caller only writes when needed.
- */
 function migrateCart(stored) {
   let changed = false;
   const cart = stored.map((it) => {
@@ -57,16 +51,11 @@ export default function useCart() {
   const [cart, setCart] = useState([]);
   const [mounted, setMounted] = useState(false);
 
-  // Keep a stable reference to the latest snapshot so event-driven
-  // refreshes (other tab, custom event) don't rely on stale closures.
   const cartRef = useRef(cart);
   useEffect(() => {
     cartRef.current = cart;
   }, [cart]);
 
-  // -----------------------------------------------------------------
-  // Hydrate from storage on mount + subscribe to external updates.
-  // -----------------------------------------------------------------
   useEffect(() => {
     let stored;
     try {
@@ -88,7 +77,6 @@ export default function useCart() {
     setCart(migrated);
     setMounted(true);
 
-    // Same-tab updates dispatched by other modules via window.dispatchEvent.
     const onCartUpdated = () => {
       try {
         setCart(getCart());
@@ -97,8 +85,6 @@ export default function useCart() {
       }
     };
 
-    // Cross-tab updates: `storage` only fires in *other* tabs, which is
-    // exactly what we want — the acting tab already set its own state.
     const onStorage = (e) => {
       if (e.key && e.key !== "amc_cart") return;
       onCartUpdated();
@@ -113,11 +99,6 @@ export default function useCart() {
     };
   }, []);
 
-  // -----------------------------------------------------------------
-  // Mutation helpers
-  // Each does a fresh read → write → publish so concurrent writers
-  // (e.g. two components, another tab) don't clobber each other.
-  // -----------------------------------------------------------------
   const commit = useCallback((next) => {
     try {
       saveCart(next);
@@ -125,7 +106,6 @@ export default function useCart() {
       console.error("[useCart] failed to persist cart:", err);
     }
     setCart(next);
-    // Notify other hook instances / tabs that already listen for this.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event(CART_EVENT));
     }

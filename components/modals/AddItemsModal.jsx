@@ -21,6 +21,12 @@ export default function AddItemsModal({
   cart,
   onClearAll,
   onClose,
+  // Sector filter props
+  sectors,
+  activeSector,
+  setActiveSector,
+  // NEW: full unfiltered list so CatalogBody can derive facets if needed
+  allItems,
 }) {
   return (
     <div
@@ -68,6 +74,10 @@ export default function AddItemsModal({
           addLabel={(added) => (added ? "Add again" : "Add")}
           selectedLines={cart}
           onClearAll={onClearAll}
+          sectors={sectors}
+          activeSector={activeSector}
+          setActiveSector={setActiveSector}
+          allItems={allItems}
         />
 
         <div className={styles.cartModal__actions}>

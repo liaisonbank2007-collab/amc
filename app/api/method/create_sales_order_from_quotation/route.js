@@ -2,7 +2,8 @@
 import { NextResponse } from "next/server";
 
 const FRAPPE_URL =
-  "https://liaisonbank.frappe.cloud/api/method/create_sales_order_from_quotation";
+  // "https://liaisonbank.frappe.cloud/api/method/create_sales_order_from_quotation";
+  "https://liaisonbank.frappe.cloud/api/method/create_sales_order_payment_request_from_quotation";
 
 export async function POST(req) {
   let body;

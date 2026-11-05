@@ -6,6 +6,17 @@ import { inr, prettyName } from "../lib/format";
 import { hasUnitControl } from "../lib/visibility";
 import { lineTotal } from "../lib/calculations";
 
+const getSector = (it) =>
+  it?.sector_type ||
+  it?.sectorType ||
+  it?.sector ||
+  it?.industry ||
+  it?.amc_sector_type ||
+  "";
+
+const getTypeKey = (it) =>
+  it?.amc_sub_type_name || it?.amc_type_name || it?.service_type || "";
+
 export default function CatalogBody({
   styles,
   search,
@@ -23,30 +34,101 @@ export default function CatalogBody({
   addLabel,
   selectedLines = [],
   onClearAll,
+  sectors,
+  activeSector,
+  setActiveSector,
+  allItems,
 }) {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
+  const [sectorOpen, setSectorOpen] = React.useState(false);
   const dropdownRef = React.useRef(null);
+  const sectorRef = React.useRef(null);
 
   React.useEffect(() => {
-    if (!dropdownOpen) return;
+    if (!dropdownOpen && !sectorOpen) return;
     const onClick = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (dropdownOpen && dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (sectorOpen && sectorRef.current && !sectorRef.current.contains(e.target)) {
+        setSectorOpen(false);
       }
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [dropdownOpen]);
+  }, [dropdownOpen, sectorOpen]);
 
-  const isAll = activeTypes.length === 0;
+  const [localSector, setLocalSector] = React.useState("All");
+  const [localTypes, setLocalTypes] = React.useState([]);
+
+  const usingParentSector =
+    typeof activeSector === "string" && typeof setActiveSector === "function";
+  const sectorValue = usingParentSector ? activeSector : localSector;
+  const changeSector = usingParentSector ? setActiveSector : setLocalSector;
+
+  const usingParentTypes =
+    Array.isArray(activeTypes) && typeof setActiveTypes === "function";
+  const typesValue = usingParentTypes ? activeTypes : localTypes;
+  const changeTypes = usingParentTypes ? setActiveTypes : setLocalTypes;
+
+// Hardcoded sector options — All + the three fixed sectors
+const FIXED_SECTORS = ["All", "Commercial", "Residential", "Industrial"];
+
+const derivedSectors = React.useMemo(() => {
+  // If the parent explicitly passes a non-empty `sectors` list, honor it
+  // (so you can still override from outside later).
+  if (Array.isArray(sectors) && sectors.length > 0) return sectors;
+  return FIXED_SECTORS;
+}, [sectors]);
+
+  const derivedTypes = React.useMemo(() => {
+    if (Array.isArray(catalogTypes) && catalogTypes.length > 0) return catalogTypes;
+    const source = Array.isArray(allItems) && allItems.length > 0
+      ? allItems
+      : (filteredCatalog || []);
+    const scoped =
+      sectorValue && sectorValue !== "All"
+        ? source.filter((it) => getSector(it) === sectorValue)
+        : source;
+    const counts = new Map();
+    scoped.forEach((it) => {
+      const key = getTypeKey(it);
+      if (!key) return;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return [
+      { key: "All", label: "All types", count: scoped.length },
+      ...Array.from(counts.entries())
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([key, count]) => ({ key, label: key, count })),
+    ];
+  }, [catalogTypes, allItems, filteredCatalog, sectorValue]);
+
+  const visibleCatalog = React.useMemo(() => {
+    const base = Array.isArray(filteredCatalog) ? filteredCatalog : [];
+    return base.filter((it) => {
+      const matchSector =
+        sectorValue === "All" || !sectorValue || getSector(it) === sectorValue;
+      const key = getTypeKey(it);
+      const matchType =
+        typesValue.length === 0 || (key && typesValue.includes(key));
+      return matchSector && matchType;
+    });
+  }, [filteredCatalog, sectorValue, typesValue]);
+
+  const isAll = typesValue.length === 0;
+  const isAllSectors = sectorValue === "All";
 
   const toggleType = (key) => {
-    setActiveTypes((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    changeTypes((prev) =>
+      Array.isArray(prev)
+        ? prev.includes(key)
+          ? prev.filter((k) => k !== key)
+          : [...prev, key]
+        : [key]
     );
   };
 
-  // Calculate total dynamically by passing the specific line's selected duration
   const selectedTotal = selectedLines.reduce((sum, line) => {
     const { total } = lineTotal(line, line.selectedDuration);
     return sum + total;
@@ -60,7 +142,51 @@ export default function CatalogBody({
   return (
     <>
       <div className={styles.catalogFilters}>
-        {catalogTypes.length > 1 && (
+        {/* 1. SECTOR */}
+        {derivedSectors.length > 0 && (
+          <div className={styles.catalogDropdown} ref={sectorRef}>
+            <button
+              type="button"
+              className={styles.catalogDropdown__trigger}
+              onClick={() => setSectorOpen((v) => !v)}
+              aria-expanded={sectorOpen}
+            >
+              <span>{isAllSectors ? "All sectors" : sectorValue}</span>
+              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+                <path
+                  d="M2.5 4.5 6 8l3.5-3.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {sectorOpen && (
+              <div className={styles.catalogDropdown__menu}>
+                {derivedSectors.map((s) => (
+                  <label key={s} className={styles.catalogDropdown__item}>
+                    <input
+                      type="radio"
+                      name="sector-filter"
+                      checked={sectorValue === s}
+                      onChange={() => {
+                        changeSector(s);
+                        setSectorOpen(false);
+                      }}
+                    />
+                    <span>{s === "All" ? "All sectors" : s}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2. SERVICE / TYPE */}
+        {derivedTypes.length > 0 && (
           <div className={styles.catalogDropdown} ref={dropdownRef}>
             <button
               type="button"
@@ -71,9 +197,9 @@ export default function CatalogBody({
               <span>
                 {isAll
                   ? "All types"
-                  : activeTypes.length === 1
-                    ? activeTypes[0]
-                    : `${activeTypes.length} types selected`}
+                  : typesValue.length === 1
+                    ? typesValue[0]
+                    : `${typesValue.length} types selected`}
               </span>
               <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
                 <path
@@ -93,17 +219,17 @@ export default function CatalogBody({
                   <input
                     type="checkbox"
                     checked={isAll}
-                    onChange={() => setActiveTypes([])}
+                    onChange={() => changeTypes([])}
                   />
                   <span>All types</span>
-                  <em>{catalogTypes[0]?.count ?? 0}</em>
+                  <em>{derivedTypes[0]?.count ?? 0}</em>
                 </label>
 
-                {catalogTypes.slice(1).map((t) => (
+                {derivedTypes.slice(1).map((t) => (
                   <label key={t.key} className={styles.catalogDropdown__item}>
                     <input
                       type="checkbox"
-                      checked={activeTypes.includes(t.key)}
+                      checked={typesValue.includes(t.key)}
                       onChange={() => toggleType(t.key)}
                     />
                     <span>{t.label}</span>
@@ -115,7 +241,7 @@ export default function CatalogBody({
                   <button
                     type="button"
                     className={styles.catalogDropdown__clear}
-                    onClick={() => setActiveTypes([])}
+                    onClick={() => changeTypes([])}
                   >
                     Clear filters
                   </button>
@@ -125,6 +251,7 @@ export default function CatalogBody({
           </div>
         )}
 
+        {/* 3. SEARCH */}
         <div className={styles.catalogSearch}>
           <span className={styles.catalogSearch__icon}>⌕</span>
           <input
@@ -146,9 +273,22 @@ export default function CatalogBody({
         </div>
       </div>
 
-      {activeTypes.length > 0 && (
+      {!isAllSectors && (
         <div className={styles.catalogChips}>
-          {activeTypes.map((key) => (
+          <button
+            type="button"
+            className={`${styles.catalogChip} ${styles["catalogChip--active"]}`}
+            onClick={() => changeSector("All")}
+          >
+            {sectorValue}
+            <span>×</span>
+          </button>
+        </div>
+      )}
+
+      {typesValue.length > 0 && (
+        <div className={styles.catalogChips}>
+          {typesValue.map((key) => (
             <button
               key={key}
               type="button"
@@ -181,7 +321,6 @@ export default function CatalogBody({
           </div>
           <ul className={styles.catalogSelected__list}>
             {selectedLines.map((line) => {
-              // FIX: Pass line.selectedDuration so the price correctly matches the cart
               const { total, hasPayable } = lineTotal(line, line.selectedDuration);
               const subCount = (line.subItems || []).length;
               const qtyLabel = hasUnitControl(line)
@@ -239,7 +378,7 @@ export default function CatalogBody({
           </div>
         )}
 
-        {!catalogLoading && !catalogError && filteredCatalog.length === 0 && (
+        {!catalogLoading && !catalogError && visibleCatalog.length === 0 && (
           <div className={styles.catalogState}>
             <p>No items match your search.</p>
           </div>
@@ -247,7 +386,7 @@ export default function CatalogBody({
 
         {!catalogLoading &&
           !catalogError &&
-          filteredCatalog.map((it) => {
+          visibleCatalog.map((it) => {
             const added = isAdded(it.item_code);
             const displayName = it.item_name || it.item_code;
             return (
@@ -264,7 +403,7 @@ export default function CatalogBody({
                   <span className={styles.catalogItem__tag}>
                     {it.amc_sub_type_name || it.amc_type_name || "AMC"}
                   </span>
-                  <strong title={displayName}>{prettyName(displayName)}</strong>
+                  {/* <strong title={displayName}>{prettyName(displayName)}</strong> */}
                 </div>
                 <div className={styles.catalogItem__price}>
                   {it.rate && it.rate > 0 ? (

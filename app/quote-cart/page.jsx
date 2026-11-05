@@ -17,6 +17,7 @@ import {
   DURATION_OPTIONS,
   monthsToDurationValue,
   durationValueToMonths,
+  getScaledVisits, // ✅ Ensure this is imported
 } from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
@@ -80,7 +81,6 @@ function parseFrappeError(raw, status) {
 }
 
 // POST /api/method/create_sales_order_from_quotation with { quotation }.
-// Non-fatal for the caller — returns { ok, name?, error? }.
 async function createSalesOrderFromQuotation(quotationId) {
   if (!quotationId) {
     return { ok: false, error: "Quotation ID is missing." };
@@ -95,10 +95,8 @@ async function createSalesOrderFromQuotation(quotationId) {
       },
       body: JSON.stringify({
         quotation: quotationId,
-
         share_key: DEFAULT_SHARE_KEY,
       }),
-
     });
 
     const ct = res.headers.get("content-type") || "";
@@ -107,8 +105,8 @@ async function createSalesOrderFromQuotation(quotationId) {
     if (!ct.includes("application/json")) {
       console.error(
         "[QuoteCartPage] Sales Order: non-JSON response (likely 404 route).\n" +
-        `status=${res.status} content-type=${ct}\n` +
-        `body=${raw.slice(0, 300)}`
+          `status=${res.status} content-type=${ct}\n` +
+          `body=${raw.slice(0, 300)}`
       );
       return {
         ok: false,
@@ -264,13 +262,12 @@ export default function QuoteCartPage() {
   }, [clearItems]);
 
   // ─────────────────────────────────────────────────────────────────
-  // Seed defaults from API response on first add; user can edit after
+  // Seed defaults from API response on first add
   // ─────────────────────────────────────────────────────────────────
   const handleAddFromCatalog = useCallback(
     (item) => {
       const { custom_duration_months, ...rest } = item;
 
-      // Robust default: if custom_max_visit is 0/null/undefined/empty → default to 1
       const rawMaxVisit = Number(item.custom_max_visit);
       const defaultVisits =
         Number.isFinite(rawMaxVisit) && rawMaxVisit > 0 ? rawMaxVisit : 1;
@@ -342,6 +339,7 @@ export default function QuoteCartPage() {
     }
   }, [refreshing, refreshCart]);
 
+  // Only updates selectedDuration — visits stay at base.
   const handleDurationChange = useCallback(
     (itemCode, duration) => {
       const rawCart = readRawCart();
@@ -375,11 +373,13 @@ export default function QuoteCartPage() {
     let discountTotal = 0;
 
     const accumulate = (it, parentDuration) => {
-      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
-      if (hasUnitControl(it)) units += Number(it.units) || 1;
+      const duration = parentDuration || it.selectedDuration || "12 Months";
 
-      const duration =
-        parentDuration || it.selectedDuration || "12 Months";
+      // ✅ FIX: Use scaled visits for total calculation
+      if (hasVisitControl(it)) {
+        visits += getScaledVisits(it, duration);
+      }
+      if (hasUnitControl(it)) units += Number(it.units) || 1;
 
       if (it.rate && it.rate > 0) {
         const { total, discountAmount } = lineTotal(it, duration);
@@ -435,7 +435,8 @@ export default function QuoteCartPage() {
         sub += total;
         discountTotal += discountAmount;
       }
-      if (hasVisitControl(it)) visits += Number(it.visits) || 1;
+      // ✅ FIX: Use scaled visits for quote summary
+      if (hasVisitControl(it)) visits += getScaledVisits(it, duration);
       if (hasUnitControl(it)) units += Number(it.units) || 1;
     });
 
@@ -501,14 +502,12 @@ export default function QuoteCartPage() {
       const pushItem = (it, duration, discount) => {
         const showVisit = hasVisitControl(it);
         const showUnit = hasUnitControl(it);
-        const visits = showVisit ? Number(it.visits) || 1 : 1;
+
+        // ✅ Scaled visit count for the selected duration
+        const visits = showVisit ? getScaledVisits(it, duration) : 1;
         const units = showUnit ? Number(it.units) || 1 : 1;
 
-
-              // ✅ Recompute using the SAME helper CartItem uses, so the payload
-      //    matches exactly what the user sees in the cart UI.
-      const { subtotal, discountAmount, total, discountPercentage } =
-        lineTotal(it, duration);
+        const { subtotal, discountPercentage } = lineTotal(it, duration);
 
         const item = {
           item_code: it.item_code,
@@ -517,20 +516,15 @@ export default function QuoteCartPage() {
           amc_type_id:
             it.amc_type_id || it.amc_type_name || it.amc_type || "",
           amc_type: it.amc_type_name || it.amc_type || "",
-          amc_sub_type_id:
-            it.amc_sub_type_id || it.amc_sub_type || "",
+          amc_sub_type_id: it.amc_sub_type_id || it.amc_sub_type || "",
           amc_sub_type: it.amc_sub_type_name || it.amc_sub_type || "",
-          // custom_min_amount: it.custom_min_amount || "",
           custom_min_amount: Math.trunc(Number(it.custom_min_amount) || 0),
           custom_unit: it.custom_unit || " ",
           qty: units,
           custom_visit: visits,
-          // rate: Number(it.rate) || 0,
-          rate: Number(subtotal.toFixed(2)),   // ← line total in place of raw rate
+          rate: Number(subtotal.toFixed(2)),
           stock_uom: it.stock_uom || it.uom || "Nos",
-          // custom_duration_months: durationValueToMonths(duration),
-          duration: (duration),
-            // custom_discount_percentage: discount,
+          duration: duration,
           discount_percentage: discount,
         };
 
@@ -592,8 +586,6 @@ export default function QuoteCartPage() {
 
         // ---------- STEP 1: create quotation ----------
         const res = await fetch(QUOTE_API, {
-       
-
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -612,9 +604,7 @@ export default function QuoteCartPage() {
         try {
           data = raw ? JSON.parse(raw) : {};
         } catch {
-          throw new Error(
-            "Server returned non-JSON: " + raw.slice(0, 200)
-          );
+          throw new Error("Server returned non-JSON: " + raw.slice(0, 200));
         }
 
         const msg = data?.message || {};
@@ -643,9 +633,7 @@ export default function QuoteCartPage() {
           shareKey: msg.share_key,
         };
 
-        // ---------- STEP 2: create sales order from quotation ----------
-        // Non-fatal: quotation already exists, so surface a soft warning
-        // on failure instead of aborting the whole submit.
+        // ---------- STEP 2: create sales order ----------
         const soResult = await createSalesOrderFromQuotation(quotationId);
 
         if (soResult.ok) {
@@ -834,8 +822,9 @@ export default function QuoteCartPage() {
                 </div>
 
                 <ul
-                  className={`${styles.cartList} ${refreshing ? styles["cartList--refreshing"] : ""
-                    }`}
+                  className={`${styles.cartList} ${
+                    refreshing ? styles["cartList--refreshing"] : ""
+                  }`}
                   aria-busy={refreshing}
                 >
                   {cart.map((it) => (

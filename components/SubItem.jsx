@@ -11,7 +11,8 @@ import {
 import {
   computeItemAmount,
   getMaxVisits,
-  hasVisitCap,            // ✅
+  getScaledVisits,
+  hasVisitCap,
   durationValueToMonths,
 } from "../lib/calculations";
 import QtyStepper from "./QtyStepper";
@@ -29,10 +30,12 @@ export default function SubItem({
   const sShowVisit = hasVisitControl(s);
   const sShowUnit = hasUnitControl(s);
 
-  // ✅ Sub-item cap inherits the parent's duration
   const effectiveDuration = s.selectedDuration || parentDuration;
   const capped = hasVisitCap(s);
   const maxVisits = capped ? getMaxVisits(s, effectiveDuration) : null;
+  
+  // ✅ Display the user's selection (no hidden multipliers)
+  const displayVisits = getScaledVisits(s, effectiveDuration);
 
   const [visitWarning, setVisitWarning] = useState("");
   const warnTimerRef = React.useRef(null);
@@ -50,9 +53,10 @@ export default function SubItem({
     []
   );
 
+  // ✅ Directly saves the new value
   const handleVisitsChange = useCallback(
     (next) => {
-      const n = Number(next) || 1;
+      const n = Math.max(1, Number(next) || 1);
 
       if (!capped) {
         onVisitsChange?.(parentCode, s.item_code, n);
@@ -67,6 +71,7 @@ export default function SubItem({
         onVisitsChange?.(parentCode, s.item_code, maxVisits);
         return;
       }
+      
       onVisitsChange?.(parentCode, s.item_code, n);
     },
     [
@@ -118,7 +123,7 @@ export default function SubItem({
               </span>
               <QtyStepper
                 className={styles.subItem__qty}
-                value={s.visits || 1}
+                value={displayVisits}
                 max={capped ? maxVisits : undefined}
                 onChange={handleVisitsChange}
                 onClamp={capped ? handleVisitClamp : undefined}
@@ -152,7 +157,7 @@ export default function SubItem({
       <div className={styles.subItem__price}>
         {s.rate && s.rate > 0
           ? inr(
-              computeItemAmount(s) * (sShowVisit ? s.visits || 1 : 1),
+              computeItemAmount(s) * displayVisits,
               s.currency
             )
           : "On request"}

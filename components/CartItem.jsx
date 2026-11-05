@@ -1,7 +1,7 @@
 // components/CartItem.jsx
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { inr, prettyName } from "../lib/format";
 import {
   hasVisitControl,
@@ -10,12 +10,10 @@ import {
 } from "../lib/visibility";
 import {
   lineTotal,
-  DURATION_OPTIONS,
-  getDiscountForDuration,
-  getDurationOption,
   durationValueToMonths,
-  getMaxVisits,        // ✅
-  hasVisitCap,         // ✅
+  getMaxVisits,
+  getScaledVisits,
+  hasVisitCap,
   MIN_DISCOUNT_MONTHS,
   getDurationOptionsForItem,
 } from "../lib/calculations";
@@ -38,21 +36,21 @@ export default function CartItem({
   const displayName = it.item_name || it.item_code;
   const subItems = it.subItems || [];
   const currentDuration = it.selectedDuration || "12 Months";
-const durationOptions = getDurationOptionsForItem(it);
+  const durationOptions = getDurationOptionsForItem(it);
+
   const { subtotal, discountPercentage, discountAmount, total, hasPayable } =
     lineTotal(it, currentDuration);
 
-  const subCount = subItems.length;
   const showVisit = hasVisitControl(it);
   const showUnit = hasUnitControl(it);
-  const durationOption = getDurationOption(currentDuration);
 
-  // ✅ Cap only when custom_max_visit > 0; otherwise Infinity = "no cap"
   const capped = hasVisitCap(it);
   const maxVisits = capped ? getMaxVisits(it, currentDuration) : null;
+  
+  const displayVisits = getScaledVisits(it, currentDuration); 
 
   const [visitWarning, setVisitWarning] = useState("");
-  const warnTimerRef = React.useRef(null);
+  const warnTimerRef = useRef(null);
 
   const showVisitWarning = useCallback((msg) => {
     setVisitWarning(msg);
@@ -60,7 +58,7 @@ const durationOptions = getDurationOptionsForItem(it);
     warnTimerRef.current = setTimeout(() => setVisitWarning(""), 3000);
   }, []);
 
-  React.useEffect(
+  useEffect(
     () => () => {
       if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
     },
@@ -69,13 +67,21 @@ const durationOptions = getDurationOptionsForItem(it);
 
   const handleDurationChange = (e) => {
     const newDuration = e.target.value;
+    
+    if (capped) {
+      // ✅ FIX: Set visits directly to the new maximum for this duration
+      const newMaxScaled = getMaxVisits(it, newDuration);
+      onVisitsChange?.(it.item_code, newMaxScaled);
+    } else {
+      onVisitsChange?.(it.item_code, 1);
+    }
+
     if (onDurationChange) onDurationChange(it.item_code, newDuration);
   };
 
-  // ✅ When no cap → straight passthrough, no validation
   const handleVisitsChange = useCallback(
     (next) => {
-      const n = Number(next) || 1;
+      const n = Math.max(1, Math.floor(Number(next) || 1));
 
       if (!capped) {
         onVisitsChange?.(it.item_code, n);
@@ -90,6 +96,8 @@ const durationOptions = getDurationOptionsForItem(it);
         onVisitsChange?.(it.item_code, maxVisits);
         return;
       }
+
+      // ✅ FIX: Save exactly what the user selected
       onVisitsChange?.(it.item_code, n);
     },
     [
@@ -104,7 +112,7 @@ const durationOptions = getDurationOptionsForItem(it);
 
   const handleVisitClamp = useCallback(
     ({ reason, max }) => {
-      if (!capped) return;                // ✅ no warning when uncapped
+      if (!capped) return;
       if (reason !== "max") return;
       showVisitWarning(
         `Max ${max} service${max > 1 ? "s" : ""} allowed for ` +
@@ -130,11 +138,6 @@ const durationOptions = getDurationOptionsForItem(it);
                 "AMC"}
             </span>
             <h3 title={displayName}>{prettyName(displayName)}</h3>
-            {/* <p className={styles.cartItem__meta}>
-              Code {it.item_code} · UOM {it.uom || "Nos"}
-              {subCount > 0 &&
-                ` · ${subCount} add-on${subCount > 1 ? "s" : ""}`}
-            </p> */}
           </div>
 
           <div className={styles.cartItem__controls}>
@@ -152,17 +155,13 @@ const durationOptions = getDurationOptionsForItem(it);
                     </span>
                     <QtyStepper
                       className={styles.cartItem__qty}
-                      value={it.visits || 1}
-                      /* ✅ pass max ONLY when capped */
+                      value={displayVisits} 
                       max={capped ? maxVisits : undefined}
                       onChange={handleVisitsChange}
                       onClamp={capped ? handleVisitClamp : undefined}
                     />
                     {visitWarning && (
-                      <span
-                        className={styles.cartItem__warning}
-                        role="alert"
-                      >
+                      <span className={styles.cartItem__warning} role="alert">
                         {visitWarning}
                       </span>
                     )}
@@ -195,23 +194,23 @@ const durationOptions = getDurationOptionsForItem(it);
                   </em>
                 )}
               </span>
-            <select
-  className={styles.cartItem__durationSelect}
-  value={currentDuration}
-  onChange={handleDurationChange}
-  aria-label="Select AMC duration"
->
-  {durationOptions.map((opt) => {                    // ✅ filtered list
-    const showDiscount =
-      opt.months >= MIN_DISCOUNT_MONTHS && opt.discount > 0;
-    return (
-      <option key={opt.value} value={opt.value}>
-        {opt.label}
-        {showDiscount ? ` (${opt.discount}% off)` : ""}
-      </option>
-    );
-  })}
-</select>
+              <select
+                className={styles.cartItem__durationSelect}
+                value={currentDuration}
+                onChange={handleDurationChange}
+                aria-label="Select AMC duration"
+              >
+                {durationOptions.map((opt) => {
+                  const showDiscount =
+                    opt.months >= MIN_DISCOUNT_MONTHS && opt.discount > 0;
+                  return (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                      {showDiscount ? ` (${opt.discount}% off)` : ""}
+                    </option>
+                  );
+                })}
+              </select>
             </div>
 
             <div className={styles.cartItem__price}>
@@ -222,8 +221,8 @@ const durationOptions = getDurationOptionsForItem(it);
                       const parts = [];
                       if (showVisit)
                         parts.push(
-                          `${it.visits || 1} service${
-                            (it.visits || 1) > 1 ? "s" : ""
+                          `${displayVisits} service${
+                            displayVisits > 1 ? "s" : ""
                           }`
                         );
                       if (showUnit)
@@ -232,8 +231,16 @@ const durationOptions = getDurationOptionsForItem(it);
                             (it.units || 1) > 1 ? "s" : ""
                           }`
                         );
+                      
                       const months = durationValueToMonths(currentDuration);
-                      parts.push(`${months} month${months > 1 ? "s" : ""}`);
+                      if (months === 12) {
+                        parts.push("1 Year");
+                      } else if (months > 12 && months % 12 === 0) {
+                        parts.push(`${months / 12} Years`);
+                      } else {
+                        parts.push(`${months} month${months > 1 ? "s" : ""}`);
+                      }
+                      
                       return parts.join(" × ");
                     })()}
                   </span>
@@ -278,8 +285,8 @@ const durationOptions = getDurationOptionsForItem(it);
           {Number(it.custom_min_amount) > 0 && Number(it.custom_unit) > 0 && (
             <p className={styles.cartItem__perunit}>
               {it.custom_min_amount} for min <br />
-              {Number(it.custom_unit).toLocaleString("en-IN")}
-              /{it.uom || it.stock_uom || "Nos"}
+              {Number(it.custom_unit).toLocaleString("en-IN")}/
+              {it.uom || it.stock_uom || "Nos"}
             </p>
           )}
         </div>

@@ -2595,6 +2595,8 @@
     border-color: rgba(205, 121, 19, 0.25);
   }
 
+  
+
   &__thumb {
     width: 44px;
     height: 44px;
@@ -2633,11 +2635,11 @@
 
   &__tag {
     align-self: flex-start;
-    font-size: 0.6rem;
-    letter-spacing: 0.12em;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
     font-weight: 700;
-    color: var(--brand, #cd7913);
+    color: #050403;
     background: rgba(205, 121, 19, 0.08);
     padding: 0.15rem 0.5rem;
     border-radius: 999px;
