@@ -14,11 +14,6 @@ const getSector = (it) =>
   it?.amc_sector_type ||
   "";
 
-/**
- * ONE canonical type key — used both to build the dropdown labels AND to
- * filter the visible list. This is what guarantees "the checkbox you tick"
- * and "the item you compare against" are the same string.
- */
 const getTypeKey = (it) =>
   (it?.amc_type_name ||
     it?.amc_type ||
@@ -27,7 +22,8 @@ const getTypeKey = (it) =>
     it?.amc_sub_type ||
     "").trim();
 
-const FIXED_SECTORS = ["All", "Commercial", "Residential", "Industrial"];
+const FIXED_SECTORS = ["Commercial", "Residential", "Industrial"];
+const DEFAULT_SECTOR = "Commercial";
 
 export default function CatalogBody({
   styles,
@@ -47,55 +43,35 @@ export default function CatalogBody({
   activeSector,
   setActiveSector,
   allItems,
-  // ── types are managed LOCALLY so no parent/child mismatch can occur ──
 }) {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
-  const [sectorOpen, setSectorOpen] = React.useState(false);
   const dropdownRef = React.useRef(null);
-  const sectorRef = React.useRef(null);
 
   React.useEffect(() => {
-    if (!dropdownOpen && !sectorOpen) return;
+    if (!dropdownOpen) return;
     const onClick = (e) => {
-      if (
-        dropdownOpen &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
-      }
-      if (
-        sectorOpen &&
-        sectorRef.current &&
-        !sectorRef.current.contains(e.target)
-      ) {
-        setSectorOpen(false);
       }
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [dropdownOpen, sectorOpen]);
+  }, [dropdownOpen]);
 
-  // ── Sector state (parent-controlled or local) ────────────────────────
-  const [localSector, setLocalSector] = React.useState("All");
+  const [localSector, setLocalSector] = React.useState(DEFAULT_SECTOR);
   const usingParentSector =
     typeof activeSector === "string" && typeof setActiveSector === "function";
   const sectorValue = usingParentSector ? activeSector : localSector;
   const changeSector = usingParentSector ? setActiveSector : setLocalSector;
 
-  // ── Type state (LOCAL — single source of truth) ──────────────────────
   const [typesValue, setTypesValue] = React.useState([]);
 
   const derivedSectors = React.useMemo(() => {
-    if (Array.isArray(sectors) && sectors.length > 0) return sectors;
-    return FIXED_SECTORS;
+    const list =
+      Array.isArray(sectors) && sectors.length > 0 ? sectors : FIXED_SECTORS;
+    return list.filter((s) => s && s !== "All");
   }, [sectors]);
 
-  /**
-   * Build type options from the FULL catalog (`allItems` first) so counts
-   * reflect the whole list, not just what survived search.
-   * Uses the exact same `getTypeKey` as `visibleCatalog` below.
-   */
   const derivedTypes = React.useMemo(() => {
     const source =
       Array.isArray(allItems) && allItems.length > 0
@@ -124,10 +100,6 @@ export default function CatalogBody({
     ];
   }, [allItems, filteredCatalog, sectorValue]);
 
-  /**
-   * Search is already applied by the parent (`filteredCatalog`).
-   * We only add sector + type here — using the SAME getTypeKey.
-   */
   const visibleCatalog = React.useMemo(() => {
     const base = Array.isArray(filteredCatalog) ? filteredCatalog : [];
     return base.filter((it) => {
@@ -141,7 +113,6 @@ export default function CatalogBody({
   }, [filteredCatalog, sectorValue, typesValue]);
 
   const isAll = typesValue.length === 0;
-  const isAllSectors = sectorValue === "All";
 
   const toggleType = (key) => {
     setTypesValue((prev) =>
@@ -159,53 +130,37 @@ export default function CatalogBody({
     return hasPayable;
   });
 
+  /* ── Collapsed by default ─────────────────────────────────────────── */
+  const [selectedOpen, setSelectedOpen] = React.useState(false);
+
   return (
     <>
       <div className={styles.catalogFilters}>
-        {/* 1. SECTOR */}
         {derivedSectors.length > 0 && (
-          <div className={styles.catalogDropdown} ref={sectorRef}>
-            <button
-              type="button"
-              className={styles.catalogDropdown__trigger}
-              onClick={() => setSectorOpen((v) => !v)}
-              aria-expanded={sectorOpen}
-            >
-              <span>{isAllSectors ? "All sectors" : sectorValue}</span>
-              <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-                <path
-                  d="M2.5 4.5 6 8l3.5-3.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-
-            {sectorOpen && (
-              <div className={styles.catalogDropdown__menu}>
-                {derivedSectors.map((s) => (
-                  <label key={s} className={styles.catalogDropdown__item}>
-                    <input
-                      type="radio"
-                      name="sector-filter"
-                      checked={sectorValue === s}
-                      onChange={() => {
-                        changeSector(s);
-                        setSectorOpen(false);
-                      }}
-                    />
-                    <span>{s === "All" ? "All sectors" : s}</span>
-                  </label>
-                ))}
-              </div>
-            )}
+          <div className={styles.catalogSectorButtons}>
+            {derivedSectors.map((s) => {
+              const active = sectorValue === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  className={`${styles.catalogSectorButton} ${
+                    active ? styles["catalogSectorButton--active"] : ""
+                  }`}
+                  onClick={() => changeSector(s)}
+                  aria-pressed={active}
+                >
+                  <span
+                    className={styles.catalogSectorButton__dot}
+                    aria-hidden="true"
+                  />
+                  {s}
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {/* 2. SERVICE / TYPE */}
         {derivedTypes.length > 0 && (
           <div className={styles.catalogDropdown} ref={dropdownRef}>
             <button
@@ -271,7 +226,6 @@ export default function CatalogBody({
           </div>
         )}
 
-        {/* 3. SEARCH */}
         <div className={styles.catalogSearch}>
           <span className={styles.catalogSearch__icon}>⌕</span>
           <input
@@ -293,19 +247,6 @@ export default function CatalogBody({
         </div>
       </div>
 
-      {!isAllSectors && (
-        <div className={styles.catalogChips}>
-          <button
-            type="button"
-            className={`${styles.catalogChip} ${styles["catalogChip--active"]}`}
-            onClick={() => changeSector("All")}
-          >
-            {sectorValue}
-            <span>×</span>
-          </button>
-        </div>
-      )}
-
       {typesValue.length > 0 && (
         <div className={styles.catalogChips}>
           {typesValue.map((key) => (
@@ -322,66 +263,130 @@ export default function CatalogBody({
         </div>
       )}
 
+      {/* ── COMPACT SELECTED BAR ────────────────────────────────────
+           Collapsed by default → always leaves the catalog list visible.
+           Tap the bar (or the chevron) to expand the full item list.  */}
       {selectedLines.length > 0 && (
-        <div className={styles.catalogSelected}>
-          <div className={styles.catalogSelected__head}>
-            <strong>Selected ({selectedLines.length})</strong>
-            <div className={styles.catalogSelected__headRight}>
+        <section
+          className={`${styles.catalogSelected} ${
+            selectedOpen ? styles["catalogSelected--open"] : ""
+          }`}
+          aria-label="Selected items"
+        >
+          <button
+            type="button"
+            className={styles.catalogSelected__bar}
+            onClick={() => setSelectedOpen((v) => !v)}
+            aria-expanded={selectedOpen}
+          >
+            <span className={styles.catalogSelected__barLeft}>
+              <span className={styles.catalogSelected__badge}>
+                {selectedLines.length}
+              </span>
+              <strong>
+                {selectedLines.length === 1
+                  ? "item selected"
+                  : "items selected"}
+              </strong>
               {hasSelectedTotal && (
-                <span className={styles.catalogSelected__total}>
-                  {inr(selectedTotal)}
+                <span className={styles.catalogSelected__barTotal}>
+                  · {inr(selectedTotal)}
                 </span>
               )}
-              {onClearAll && (
-                <button type="button" onClick={onClearAll}>
-                  Clear all
-                </button>
-              )}
-            </div>
-          </div>
-          <ul className={styles.catalogSelected__list}>
-            {selectedLines.map((line) => {
-              const { total, hasPayable } = lineTotal(
-                line,
-                line.selectedDuration
-              );
-              const subCount = (line.subItems || []).length;
-              const qtyLabel = hasUnitControl(line)
-                ? line.units || 1
-                : line.qty || 1;
+            </span>
 
-              return (
-                <li key={line.item_code}>
-                  <div className={styles.catalogSelected__info}>
-                    <strong title={line.item_name || line.item_code}>
-                      {prettyName(line.item_name || line.item_code)}
-                    </strong>
-                    <span>
-                      {qtyLabel} {hasUnitControl(line) ? "Units" : "Qty"}
-                      {subCount > 0 &&
-                        ` · ${subCount} add-on${subCount > 1 ? "s" : ""}`}
-                      {line.selectedDuration && ` · ${line.selectedDuration}`}
-                    </span>
-                  </div>
-                  <div className={styles.catalogSelected__price}>
-                    <span>
-                      {hasPayable ? inr(total, line.currency) : "On request"}
-                    </span>
-                    {onRemove && (
-                      <button
-                        type="button"
-                        onClick={() => onRemove(line)}
-                        aria-label={`Remove ${line.item_name || line.item_code}`}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+            <span className={styles.catalogSelected__barRight}>
+              {onClearAll && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className={styles.catalogSelected__clear}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClearAll();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      onClearAll();
+                    }
+                  }}
+                >
+                  Clear
+                </span>
+              )}
+              <span
+                className={styles.catalogSelected__chevron}
+                aria-hidden="true"
+              >
+                {selectedOpen ? "▴" : "▾"}
+              </span>
+            </span>
+          </button>
+
+          {selectedOpen && (
+            <ul className={styles.catalogSelected__list}>
+              {selectedLines.map((line) => {
+                const { total, hasPayable } = lineTotal(
+                  line,
+                  line.selectedDuration
+                );
+                const subCount = (line.subItems || []).length;
+                const displayName = line.item_name || line.item_code;
+                const isUnit = hasUnitControl(line);
+                const qtyLabel = isUnit ? line.units || 1 : line.qty || 1;
+
+                return (
+                  <li
+                    key={line.item_code}
+                    className={styles.catalogSelected__item}
+                  >
+                    <div
+                      className={styles.catalogSelected__thumb}
+                      aria-hidden="true"
+                    >
+                      {prettyName(displayName).slice(0, 2).toUpperCase()}
+                    </div>
+
+                    <div className={styles.catalogSelected__info}>
+                      <strong title={displayName}>
+                        {prettyName(displayName)}
+                      </strong>
+                      <span className={styles.catalogSelected__meta}>
+                        <span className={styles.catalogSelected__qty}>
+                          {qtyLabel} {isUnit ? "Units" : "Qty"}
+                        </span>
+                        {subCount > 0 && (
+                          <span>
+                            · {subCount} add-on{subCount > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {line.selectedDuration && (
+                          <span>· {line.selectedDuration}</span>
+                        )}
+                      </span>
+                    </div>
+
+                    <div className={styles.catalogSelected__price}>
+                      <span>
+                        {hasPayable ? inr(total, line.currency) : "On request"}
+                      </span>
+                      {onRemove && (
+                        <button
+                          type="button"
+                          onClick={() => onRemove(line)}
+                          aria-label={`Remove ${displayName}`}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
       )}
 
       <div className={styles.catalogList}>
