@@ -17,7 +17,7 @@ import {
   DURATION_OPTIONS,
   monthsToDurationValue,
   durationValueToMonths,
-  getScaledVisits, // ✅ Ensure this is imported
+  getScaledVisits,
 } from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
@@ -36,8 +36,17 @@ import QuoteModal from "../../components/modals/QuoteModal";
 const API_URL = "/api/frappe/get_amc_items";
 const QUOTE_API = "/api/method/create_amc_quotation";
 const SALES_ORDER_API = "/api/method/create_sales_order_from_quotation";
+const RAZORPAY_CHECKOUT_API = "/api/method/get_razorpay_checkout_details";
 const DEFAULT_SHARE_KEY = "592d628310f9ca4:669d8384d3f1ef5";
 const CART_STORAGE_KEY = "amc_cart";
+
+// Shared SweetAlert2 styling (matches cart.module.scss)
+const SWAL_CLASSES = {
+  popup: "amc-quote-swal-popup",
+  title: "amc-quote-swal-title",
+  confirmButton: "amc-quote-swal-btn",
+  cancelButton: "amc-quote-swal-btn",
+};
 
 // ---------- helpers ----------
 
@@ -125,16 +134,157 @@ async function createSalesOrderFromQuotation(quotationId) {
       return { ok: false, error: parseFrappeError(raw, res.status) };
     }
 
-    const soName =
-      data?.message?.name ||
-      data?.message?.sales_order ||
-      data?.name ||
-      null;
+    const msg = data?.message || {};
 
-    return { ok: true, name: soName, raw: data };
+    const soName = msg.sales_order || msg.name || data?.name || null;
+    const paymentUrl = msg.payment_url || null;
+    const paymentToken = msg.payment_token || null;
+    const paymentRequest = msg.payment_request || null;
+    const paymentStatus = msg.payment_status || null;
+    const grandTotal = msg.grand_total || null;
+    const currency = msg.currency || "INR";
+
+    return {
+      ok: true,
+      name: soName,
+      paymentUrl,
+      paymentToken,
+      paymentRequest,
+      paymentStatus,
+      grandTotal,
+      currency,
+      raw: data,
+    };
   } catch (err) {
     return { ok: false, error: String(err?.message || err) };
   }
+}
+
+// ---------- Razorpay helpers ----------
+
+async function loadRazorpayScript() {
+  if (typeof window === "undefined") return false;
+  if (window.Razorpay) return true;
+  return new Promise((resolve) => {
+    const existing = document.querySelector(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]'
+    );
+    if (existing) {
+      existing.addEventListener("load", () => resolve(true));
+      existing.addEventListener("error", () => resolve(false));
+      if (window.Razorpay) resolve(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+}
+
+async function openRazorpayCheckout({ paymentToken, paymentRequest }) {
+  if (!paymentToken) {
+    return { ok: false, error: "Payment token is missing." };
+  }
+
+  const scriptLoaded = await loadRazorpayScript();
+  if (!scriptLoaded || !window.Razorpay) {
+    return { ok: false, error: "Failed to load Razorpay SDK." };
+  }
+
+  let res;
+  try {
+    res = await fetch(RAZORPAY_CHECKOUT_API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        token: paymentToken,
+        payment_request: paymentRequest,
+        share_key: DEFAULT_SHARE_KEY,
+      }),
+    });
+  } catch (err) {
+    return { ok: false, error: `Network error: ${String(err?.message || err)}` };
+  }
+
+  const rawText = await res.text();
+  let data = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    return {
+      ok: false,
+      error: `Checkout details response was not valid JSON (HTTP ${res.status}).`,
+    };
+  }
+
+  if (!res.ok || data?.exception || data?._server_messages) {
+    return {
+      ok: false,
+      error: parseFrappeError(rawText, res.status),
+    };
+  }
+
+  const msg = data?.message || {};
+
+  if (!msg.checkout_ready || !msg.razorpay) {
+    return {
+      ok: false,
+      error: msg.message || "Razorpay checkout is not ready.",
+    };
+  }
+
+  const { key_id, order_id, amount, currency } = msg.razorpay;
+
+  return new Promise((resolve) => {
+    try {
+      const rzp = new window.Razorpay({
+        key: key_id,
+        order_id,
+        amount,
+        currency,
+        name: "DBRE India Pvt Ltd",
+        description: `AMC Payment — ${msg.sales_order || ""}`,
+        prefill: {
+          name: msg.customer_name || "",
+        },
+        handler: function (response) {
+          resolve({
+            ok: true,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_signature: response.razorpay_signature,
+            sales_order: msg.sales_order,
+            payment_request: msg.payment_request,
+          });
+        },
+        modal: {
+          ondismiss: function () {
+            resolve({ ok: false, error: "Payment cancelled by user." });
+          },
+        },
+      });
+
+      rzp.on("payment.failed", function (response) {
+        resolve({
+          ok: false,
+          error: response.error?.description || "Payment failed.",
+        });
+      });
+
+      rzp.open();
+    } catch (err) {
+      resolve({
+        ok: false,
+        error: `Could not open Razorpay: ${String(err?.message || err)}`,
+      });
+    }
+  });
 }
 
 // ---------- page ----------
@@ -196,7 +346,7 @@ export default function QuoteCartPage() {
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 1800);
+    setTimeout(() => setToast(""), 2200);
   }, []);
 
   useEffect(() => {
@@ -261,9 +411,6 @@ export default function QuoteCartPage() {
     clearItems();
   }, [clearItems]);
 
-  // ─────────────────────────────────────────────────────────────────
-  // Seed defaults from API response on first add
-  // ─────────────────────────────────────────────────────────────────
   const handleAddFromCatalog = useCallback(
     (item) => {
       const { custom_duration_months, ...rest } = item;
@@ -339,7 +486,6 @@ export default function QuoteCartPage() {
     }
   }, [refreshing, refreshCart]);
 
-  // Only updates selectedDuration — visits stay at base.
   const handleDurationChange = useCallback(
     (itemCode, duration) => {
       const rawCart = readRawCart();
@@ -355,7 +501,6 @@ export default function QuoteCartPage() {
     [refreshCart]
   );
 
-  // Totals
   const {
     subtotal,
     payableCount,
@@ -375,7 +520,6 @@ export default function QuoteCartPage() {
     const accumulate = (it, parentDuration) => {
       const duration = parentDuration || it.selectedDuration || "12 Months";
 
-      // ✅ FIX: Use scaled visits for total calculation
       if (hasVisitControl(it)) {
         visits += getScaledVisits(it, duration);
       }
@@ -435,7 +579,6 @@ export default function QuoteCartPage() {
         sub += total;
         discountTotal += discountAmount;
       }
-      // ✅ FIX: Use scaled visits for quote summary
       if (hasVisitControl(it)) visits += getScaledVisits(it, duration);
       if (hasUnitControl(it)) units += Number(it.units) || 1;
     });
@@ -503,7 +646,6 @@ export default function QuoteCartPage() {
         const showVisit = hasVisitControl(it);
         const showUnit = hasUnitControl(it);
 
-        // ✅ Scaled visit count for the selected duration
         const visits = showVisit ? getScaledVisits(it, duration) : 1;
         const units = showUnit ? Number(it.units) || 1 : 1;
 
@@ -522,7 +664,8 @@ export default function QuoteCartPage() {
           custom_unit: it.custom_unit || " ",
           qty: units,
           custom_visit: visits,
-          rate: Number(subtotal.toFixed(2)),
+          // rate: Number(subtotal.toFixed(2)),
+          rate: Number(it.rate || 0),
           stock_uom: it.stock_uom || it.uom || "Nos",
           duration: duration,
           discount_percentage: discount,
@@ -545,6 +688,50 @@ export default function QuoteCartPage() {
     async (e) => {
       e.preventDefault();
       if (!activeQuoteItems.length) return;
+
+    // ────────────────────────────────────────────────────────────
+// STEP 0a: Confirmation SweetAlert before creating quote
+// ────────────────────────────────────────────────────────────
+const confirmResult = await Swal.fire({
+  icon: "question",
+  title: "Create quote & proceed to payment?",
+  html: `
+    <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
+      We'll create your quotation, then open the secure
+      <strong>Razorpay</strong> payment window.
+    </p>
+    <p style="margin:0;font-size:0.8rem;color:#6b7280;line-height:1.5;">
+      Once payment is completed, you'll be taken to your quote
+      confirmation page where you can view and download it.
+    </p>
+  `,
+  showCancelButton: true,
+  confirmButtonText: "Yes, continue",
+  cancelButtonText: "Cancel",
+  confirmButtonColor: "#cd7913",
+  cancelButtonColor: "#6b7280",
+  reverseButtons: true,
+  customClass: SWAL_CLASSES,
+});
+
+      if (!confirmResult.isConfirmed) return;
+
+      // ────────────────────────────────────────────────────────────
+      // STEP 0b: Loading SweetAlert while talking to Frappe
+      // ────────────────────────────────────────────────────────────
+      Swal.fire({
+        title: "Creating your quote…",
+        html: `<p style="margin:0;color:#6b7280;font-size:0.85rem;line-height:1.5;">
+                 Please wait while we prepare your quotation.
+               </p>`,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+        customClass: SWAL_CLASSES,
+      });
 
       setSubmitting(true);
       try {
@@ -633,25 +820,118 @@ export default function QuoteCartPage() {
           shareKey: msg.share_key,
         };
 
-        // ---------- STEP 2: create sales order ----------
+        // ---------- STEP 2: create sales order + payment ----------
         const soResult = await createSalesOrderFromQuotation(quotationId);
 
-        if (soResult.ok) {
-          if (soResult.name) {
-            quoteInfo.salesOrder = soResult.name;
-          }
-          console.info(
-            "[QuoteCartPage] Sales Order created:",
-            soResult.name || "(no name returned)"
-          );
-        } else {
+        if (!soResult.ok) {
           console.error(
             "[QuoteCartPage] Sales Order creation failed:",
             soResult.error
           );
-          showToast(
-            "Quotation saved, but Sales Order could not be created."
-          );
+          quoteInfo.paymentStatus = "Failed";
+
+          await Swal.fire({
+            icon: "warning",
+            title: "Quote saved, but payment setup failed",
+            html: `
+              <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
+                Your quotation <strong>${quotationId}</strong> was created
+                successfully, but we couldn't set up the payment.
+              </p>
+              <p style="margin:0;font-size:0.8rem;color:#6b7280;line-height:1.5;">
+                ${soResult.error || "Please try again later from the quote page."}
+              </p>
+            `,
+            confirmButtonText: "OK",
+            confirmButtonColor: "#cd7913",
+            customClass: SWAL_CLASSES,
+          });
+        } else {
+          quoteInfo.salesOrder = soResult.name;
+          quoteInfo.paymentRequest = soResult.paymentRequest;
+          quoteInfo.paymentToken = soResult.paymentToken;
+
+          if (soResult.paymentToken) {
+            // Close the loading alert before Razorpay opens
+            Swal.close();
+
+            const paymentResult = await openRazorpayCheckout({
+              paymentToken: soResult.paymentToken,
+              paymentRequest: soResult.paymentRequest,
+            });
+
+            if (paymentResult.ok) {
+              quoteInfo.paymentStatus = "Paid";
+              quoteInfo.razorpayPaymentId = paymentResult.razorpay_payment_id;
+              quoteInfo.razorpayOrderId = paymentResult.razorpay_order_id;
+              quoteInfo.razorpaySignature = paymentResult.razorpay_signature;
+
+              // ── Payment success SweetAlert ──
+              // await Swal.fire({
+              //   icon: "success",
+              //   title: "Payment successful!",
+              //   html: `
+              //     <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
+              //       Your quotation <strong>${quotationId}</strong> has been
+              //       created and payment received.
+              //     </p>
+              //     <p style="margin:0;color:#16794a;font-weight:700;font-size:0.85rem;">
+              //       ✅ All set — you're good to go!
+              //     </p>
+              //   `,
+              //   confirmButtonText: "View quote",
+              //   confirmButtonColor: "#cd7913",
+              //   customClass: SWAL_CLASSES,
+              // });
+            } else {
+              console.warn(
+                "[QuoteCartPage] Payment not completed:",
+                paymentResult.error
+              );
+              quoteInfo.paymentStatus = "Pending";
+
+              // ── Payment failed / cancelled SweetAlert ──
+              await Swal.fire({
+                icon: "warning",
+                title: "Payment not completed",
+                html: `
+                  <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
+                    ${paymentResult.error || "The payment was cancelled or failed."}
+                  </p>
+                  <p style="margin:0;font-size:0.8rem;color:#6b7280;line-height:1.5;">
+                    Your quotation <strong>${quotationId}</strong> has been
+                    saved — you can retry payment later.
+                  </p>
+                `,
+                confirmButtonText: "OK",
+                confirmButtonColor: "#cd7913",
+                customClass: SWAL_CLASSES,
+              });
+            }
+          } else {
+            console.error(
+              "[QuoteCartPage] Sales Order created but no payment token:",
+              soResult.raw
+            );
+            quoteInfo.paymentStatus = "Pending";
+
+            await Swal.fire({
+              icon: "info",
+              title: "Quote created — payment link missing",
+              html: `
+                <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
+                  Your quotation <strong>${quotationId}</strong> was created
+                  successfully, but the payment link wasn't returned.
+                </p>
+                <p style="margin:0;font-size:0.8rem;color:#6b7280;line-height:1.5;">
+                  Please contact support or retry payment from the quote page.
+                </p>
+              `,
+              confirmButtonText: "OK",
+              confirmButtonColor: "#cd7913",
+              customClass: SWAL_CLASSES,
+            });
+          }
         }
 
         // ---------- STEP 3: update UI ----------
@@ -672,16 +952,20 @@ export default function QuoteCartPage() {
         Swal.fire({
           icon: "error",
           title: "Something went wrong",
-          text: err.message || "Please try again.",
+          html: `
+            <p style="margin:0;color:#4b5563;line-height:1.5;">
+              ${err.message || "Please try again."}
+            </p>
+          `,
           confirmButtonColor: "#cd7913",
-          customClass: {
-            popup: "amc-quote-swal-popup",
-            title: "amc-quote-swal-title",
-            confirmButton: "amc-quote-swal-btn",
-          },
+          customClass: SWAL_CLASSES,
         });
       } finally {
         setSubmitting(false);
+        // Safety net: close any lingering loading alert
+        if (Swal.isVisible() && Swal.getConfirmButton() === null) {
+          Swal.close();
+        }
       }
     },
     [
@@ -714,7 +998,7 @@ export default function QuoteCartPage() {
   const filteredCatalog = useMemo(() => {
     const q = search.trim().toLowerCase();
     return catalog.filter((it) => {
-      const typeKey = (it.amc_type_name || it.amc_type || "Other").trim();
+      // const typeKey = (it.amc_type_name || it.amc_type || "Other").trim();
       if (activeTypes.length > 0 && !activeTypes.includes(typeKey))
         return false;
       if (!q) return true;

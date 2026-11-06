@@ -41,6 +41,8 @@ export default function CartItem({
   const { subtotal, discountPercentage, discountAmount, total, hasPayable } =
     lineTotal(it, currentDuration);
 
+    const isFixed = it.custom_type === "Fixed";
+
   const showVisit = hasVisitControl(it);
   const showUnit = hasUnitControl(it);
 
@@ -143,7 +145,7 @@ export default function CartItem({
           <div className={styles.cartItem__controls}>
             {hasQtyControls(it) && (
               <div className={styles.cartItem__counts}>
-                {showVisit && (
+                {/* {showVisit && (
                   <div className={styles.cartItem__count}>
                     <span className={styles.cartItem__countLabel}>
                       Service
@@ -166,8 +168,37 @@ export default function CartItem({
                       </span>
                     )}
                   </div>
-                )}
+                )} */}
 
+
+{showVisit && (
+  <div className={styles.cartItem__count}>
+    <span className={styles.cartItem__countLabel}>
+      Service
+      {capped && (
+        <em className={styles.cartItem__capBadge}>
+          max {maxVisits}
+        </em>
+      )}
+    </span>
+    {isFixed ? (
+  <span className={styles.cartItem__qtyFixed}>{displayVisits}</span>
+    ) : (
+      <QtyStepper
+        className={styles.cartItem__qty}
+        value={displayVisits}
+        max={capped ? maxVisits : undefined}
+        onChange={handleVisitsChange}
+        onClamp={capped ? handleVisitClamp : undefined}
+      />
+    )}
+    {visitWarning && (
+      <span className={styles.cartItem__warning} role="alert">
+        {visitWarning}
+      </span>
+    )}
+  </div>
+)}
                 {showUnit && (
                   <div className={styles.cartItem__count}>
                     <span className={styles.cartItem__countLabel}>

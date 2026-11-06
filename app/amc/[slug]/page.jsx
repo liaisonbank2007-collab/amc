@@ -23,6 +23,7 @@ export default function SubServicePage() {
   const [subTypes, setSubTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [originalTitle, setOriginalTitle] = useState(""); // NEW: preserve original amc_type
 
   useEffect(() => {
     if (!slug) return;
@@ -54,25 +55,30 @@ export default function SubServicePage() {
           (item) => item?.amc_type && slugify(item.amc_type) === slug
         );
 
-       const mapped = filtered.map((item, index) => {
-  const title = item.amc_sub_type || item.name || "Untitled";
-  const description = item.description || "";
-  const subSlug = slugify(title);
+        // NEW: Preserve original casing from the first matching item
+        if (filtered.length > 0 && filtered[0]?.amc_type) {
+          setOriginalTitle(filtered[0].amc_type);
+        }
 
-  return {
-    id: subSlug,
-    docName: item.name,
-    number: String(index + 1).padStart(2, "0"),
-    title,
-    description,
-    items: [
-      "Scheduled inspections",
-      "Preventive servicing",
-      "Priority support",
-    ],
-    href: `/amc/${slug}/${subSlug}`,
-  };
-});
+        const mapped = filtered.map((item, index) => {
+          const title = item.amc_sub_type || item.name || "Untitled";
+          const description = item.description || "";
+          const subSlug = slugify(title);
+
+          return {
+            id: subSlug,
+            docName: item.name,
+            number: String(index + 1).padStart(2, "0"),
+            title,
+            description,
+            items: [
+              "Scheduled inspections",
+              "Preventive servicing",
+              "Priority support",
+            ],
+            href: `/amc/${slug}/${subSlug}`,
+          };
+        });
 
         setSubTypes(mapped);
       } catch (err) {
@@ -88,7 +94,8 @@ export default function SubServicePage() {
     return () => controller.abort();
   }, [slug]);
 
-  const prettyTitle = slug.replace(/-/g, " ");
+  // NEW: Use original title if available, fallback to slug-derived
+  const prettyTitle = originalTitle || slug.replace(/-/g, " ");
 
   return (
     <>
@@ -138,23 +145,6 @@ export default function SubServicePage() {
               </div>
             </div>
           </div>
-
-          {/* <div className="ssHero__marquee" aria-hidden="true">
-            <div className="ssHero__marqueeTrack">
-              {[...Array(2)].map((_, i) => (
-                <div key={i} className="ssHero__marqueeRow">
-                  <span>INSPECTIONS</span>
-                  <em>◆</em>
-                  <span>SERVICING</span>
-                  <em>◆</em>
-                  <span>MAINTENANCE</span>
-                  <em>◆</em>
-                  <span>SUPPORT</span>
-                  <em>◆</em>
-                </div>
-              ))}
-            </div>
-          </div> */}
         </section>
 
         {/* ============ STICKY NAV ============ */}

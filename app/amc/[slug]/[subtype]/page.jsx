@@ -48,6 +48,9 @@ export default function SubServiceItemsPage() {
   const [cartCount, setCartCount] = useState(0);
   const [loggedIn, setLoggedIn] = useState(false);
 
+  // NEW: preserve original subtype casing from API
+  const [originalSubtype, setOriginalSubtype] = useState("");
+
   // ---------- fetch items ----------
   useEffect(() => {
     if (!amcTypeSlug || !subtypeSlug) return;
@@ -79,6 +82,14 @@ export default function SubServiceItemsPage() {
           const subName = it?.amc_sub_type_name || it?.amc_sub_type || "";
           return slugify(subName) === subtypeSlug;
         });
+
+        // NEW: preserve original casing from first matching item
+        if (filtered.length > 0) {
+          const first = filtered[0];
+          const original =
+            first?.amc_sub_type_name || first?.amc_sub_type || "";
+          if (original) setOriginalSubtype(original);
+        }
 
         setItems(filtered);
       } catch (err) {
@@ -192,7 +203,8 @@ export default function SubServiceItemsPage() {
     });
   };
 
-  const prettySubtype = subtypeSlug.replace(/-/g, " ");
+  // NEW: use original subtype casing if available
+  const prettySubtype = originalSubtype || subtypeSlug.replace(/-/g, " ");
 
   return (
     <>
