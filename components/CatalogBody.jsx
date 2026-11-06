@@ -14,16 +14,25 @@ const getSector = (it) =>
   it?.amc_sector_type ||
   "";
 
+/**
+ * ONE canonical type key — used both to build the dropdown labels AND to
+ * filter the visible list. This is what guarantees "the checkbox you tick"
+ * and "the item you compare against" are the same string.
+ */
 const getTypeKey = (it) =>
-  it?.amc_sub_type_name || it?.amc_type_name || it?.service_type || "";
+  (it?.amc_type_name ||
+    it?.amc_type ||
+    it?.service_type ||
+    it?.amc_sub_type_name ||
+    it?.amc_sub_type ||
+    "").trim();
+
+const FIXED_SECTORS = ["All", "Commercial", "Residential", "Industrial"];
 
 export default function CatalogBody({
   styles,
   search,
   setSearch,
-  catalogTypes,
-  activeTypes,
-  setActiveTypes,
   catalogLoading,
   catalogError,
   filteredCatalog,
@@ -38,6 +47,7 @@ export default function CatalogBody({
   activeSector,
   setActiveSector,
   allItems,
+  // ── types are managed LOCALLY so no parent/child mismatch can occur ──
 }) {
   const [dropdownOpen, setDropdownOpen] = React.useState(false);
   const [sectorOpen, setSectorOpen] = React.useState(false);
@@ -47,10 +57,18 @@ export default function CatalogBody({
   React.useEffect(() => {
     if (!dropdownOpen && !sectorOpen) return;
     const onClick = (e) => {
-      if (dropdownOpen && dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      if (
+        dropdownOpen &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target)
+      ) {
         setDropdownOpen(false);
       }
-      if (sectorOpen && sectorRef.current && !sectorRef.current.contains(e.target)) {
+      if (
+        sectorOpen &&
+        sectorRef.current &&
+        !sectorRef.current.contains(e.target)
+      ) {
         setSectorOpen(false);
       }
     };
@@ -58,52 +76,58 @@ export default function CatalogBody({
     return () => document.removeEventListener("mousedown", onClick);
   }, [dropdownOpen, sectorOpen]);
 
+  // ── Sector state (parent-controlled or local) ────────────────────────
   const [localSector, setLocalSector] = React.useState("All");
-  const [localTypes, setLocalTypes] = React.useState([]);
-
   const usingParentSector =
     typeof activeSector === "string" && typeof setActiveSector === "function";
   const sectorValue = usingParentSector ? activeSector : localSector;
   const changeSector = usingParentSector ? setActiveSector : setLocalSector;
 
-  const usingParentTypes =
-    Array.isArray(activeTypes) && typeof setActiveTypes === "function";
-  const typesValue = usingParentTypes ? activeTypes : localTypes;
-  const changeTypes = usingParentTypes ? setActiveTypes : setLocalTypes;
+  // ── Type state (LOCAL — single source of truth) ──────────────────────
+  const [typesValue, setTypesValue] = React.useState([]);
 
-// Hardcoded sector options — All + the three fixed sectors
-const FIXED_SECTORS = ["All", "Commercial", "Residential", "Industrial"];
+  const derivedSectors = React.useMemo(() => {
+    if (Array.isArray(sectors) && sectors.length > 0) return sectors;
+    return FIXED_SECTORS;
+  }, [sectors]);
 
-const derivedSectors = React.useMemo(() => {
-  // If the parent explicitly passes a non-empty `sectors` list, honor it
-  // (so you can still override from outside later).
-  if (Array.isArray(sectors) && sectors.length > 0) return sectors;
-  return FIXED_SECTORS;
-}, [sectors]);
-
+  /**
+   * Build type options from the FULL catalog (`allItems` first) so counts
+   * reflect the whole list, not just what survived search.
+   * Uses the exact same `getTypeKey` as `visibleCatalog` below.
+   */
   const derivedTypes = React.useMemo(() => {
-    if (Array.isArray(catalogTypes) && catalogTypes.length > 0) return catalogTypes;
-    const source = Array.isArray(allItems) && allItems.length > 0
-      ? allItems
-      : (filteredCatalog || []);
+    const source =
+      Array.isArray(allItems) && allItems.length > 0
+        ? allItems
+        : Array.isArray(filteredCatalog)
+          ? filteredCatalog
+          : [];
+
     const scoped =
       sectorValue && sectorValue !== "All"
         ? source.filter((it) => getSector(it) === sectorValue)
         : source;
+
     const counts = new Map();
     scoped.forEach((it) => {
       const key = getTypeKey(it);
       if (!key) return;
       counts.set(key, (counts.get(key) || 0) + 1);
     });
+
     return [
       { key: "All", label: "All types", count: scoped.length },
       ...Array.from(counts.entries())
         .sort((a, b) => a[0].localeCompare(b[0]))
         .map(([key, count]) => ({ key, label: key, count })),
     ];
-  }, [catalogTypes, allItems, filteredCatalog, sectorValue]);
+  }, [allItems, filteredCatalog, sectorValue]);
 
+  /**
+   * Search is already applied by the parent (`filteredCatalog`).
+   * We only add sector + type here — using the SAME getTypeKey.
+   */
   const visibleCatalog = React.useMemo(() => {
     const base = Array.isArray(filteredCatalog) ? filteredCatalog : [];
     return base.filter((it) => {
@@ -120,12 +144,8 @@ const derivedSectors = React.useMemo(() => {
   const isAllSectors = sectorValue === "All";
 
   const toggleType = (key) => {
-    changeTypes((prev) =>
-      Array.isArray(prev)
-        ? prev.includes(key)
-          ? prev.filter((k) => k !== key)
-          : [...prev, key]
-        : [key]
+    setTypesValue((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
     );
   };
 
@@ -219,7 +239,7 @@ const derivedSectors = React.useMemo(() => {
                   <input
                     type="checkbox"
                     checked={isAll}
-                    onChange={() => changeTypes([])}
+                    onChange={() => setTypesValue([])}
                   />
                   <span>All types</span>
                   <em>{derivedTypes[0]?.count ?? 0}</em>
@@ -241,7 +261,7 @@ const derivedSectors = React.useMemo(() => {
                   <button
                     type="button"
                     className={styles.catalogDropdown__clear}
-                    onClick={() => changeTypes([])}
+                    onClick={() => setTypesValue([])}
                   >
                     Clear filters
                   </button>
@@ -321,7 +341,10 @@ const derivedSectors = React.useMemo(() => {
           </div>
           <ul className={styles.catalogSelected__list}>
             {selectedLines.map((line) => {
-              const { total, hasPayable } = lineTotal(line, line.selectedDuration);
+              const { total, hasPayable } = lineTotal(
+                line,
+                line.selectedDuration
+              );
               const subCount = (line.subItems || []).length;
               const qtyLabel = hasUnitControl(line)
                 ? line.units || 1
@@ -372,7 +395,11 @@ const derivedSectors = React.useMemo(() => {
         {catalogError && !catalogLoading && (
           <div className={styles.catalogState}>
             <p>{catalogError}</p>
-            <button type="button" className={styles.catalogRetry} onClick={retry}>
+            <button
+              type="button"
+              className={styles.catalogRetry}
+              onClick={retry}
+            >
               Retry
             </button>
           </div>
@@ -400,9 +427,6 @@ const derivedSectors = React.useMemo(() => {
                   {displayName.slice(0, 2).toUpperCase()}
                 </div>
                 <div className={styles.catalogItem__info}>
-                  {/* <span className={styles.catalogItem__tag}>
-                    {it.amc_sub_type_name || it.amc_type_name || "AMC"}
-                  </span> */}
                   <strong title={displayName}>{prettyName(displayName)}</strong>
                 </div>
                 <div className={styles.catalogItem__price}>

@@ -8,9 +8,6 @@ export default function AddItemsModal({
   styles,
   search,
   setSearch,
-  catalogTypes,
-  activeTypes,
-  setActiveTypes,
   catalogLoading,
   catalogError,
   filteredCatalog,
@@ -25,7 +22,7 @@ export default function AddItemsModal({
   sectors,
   activeSector,
   setActiveSector,
-  // NEW: full unfiltered list so CatalogBody can derive facets if needed
+  // Full unfiltered list — feeds the type dropdown's counts
   allItems,
 }) {
   return (
@@ -61,9 +58,6 @@ export default function AddItemsModal({
           styles={styles}
           search={search}
           setSearch={setSearch}
-          catalogTypes={catalogTypes}
-          activeTypes={activeTypes}
-          setActiveTypes={setActiveTypes}
           catalogLoading={catalogLoading}
           catalogError={catalogError}
           filteredCatalog={filteredCatalog}
