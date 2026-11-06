@@ -861,6 +861,21 @@
     }
   }
 
+    &__qtyFixed {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 68px;
+    height: 38px;
+    padding: 0 0.85rem;
+    background: #f2f4f2;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
   /* ───────── Duration selector ───────── */
   &__duration {
     display: flex;
@@ -4005,6 +4020,9 @@
   line-height: 1.35;
   max-width: 220px;
 }
+
+
+
 
 // =========================================================
 // SUB-ITEM — CAP BADGE + WARNING (top-level)
