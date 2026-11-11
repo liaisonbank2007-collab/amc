@@ -239,11 +239,12 @@ export default function Login() {
                       </svg>
                     </span>
                     <span className={styles.checkboxText}>Remember me</span>
+                    
                   </label>
 
-                  {/* <a href="#" className={styles.forgotLink}>
+                  <a href="/password-reset" className={styles.forgotLink}>
                     Forgot password?
-                  </a> */}
+                  </a>
                 </div>
 
                 {/* Submit */}
