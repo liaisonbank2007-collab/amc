@@ -7,6 +7,8 @@ import {
   saveCart,
   removeFromCart,
   clearCart,
+    setCertificationSelected,      // NEW
+  setSubCertificationSelected,   // NEW
 } from "@/lib/cart";
 
 const CART_EVENT = "amc-cart-updated";
@@ -46,6 +48,9 @@ function migrateCart(stored) {
   });
   return { cart, changed };
 }
+
+
+
 
 export default function useCart() {
   const [cart, setCart] = useState([]);
@@ -99,6 +104,9 @@ export default function useCart() {
     };
   }, []);
 
+
+  
+
   const commit = useCallback((next) => {
     try {
       saveCart(next);
@@ -110,6 +118,9 @@ export default function useCart() {
       window.dispatchEvent(new Event(CART_EVENT));
     }
   }, []);
+
+
+  
 
   const readLatest = useCallback(() => {
     try {
@@ -131,6 +142,39 @@ export default function useCart() {
     [commit, readLatest]
   );
 
+
+
+    const setCertSelected = useCallback(
+    (itemCode, selected) => {
+      try {
+        setCertificationSelected(itemCode, selected);
+      } catch (err) {
+        console.error("[useCart] failed to update certification:", err);
+      }
+      const next = readLatest();
+      setCart(next);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(CART_EVENT));
+      }
+    },
+    [readLatest]
+  );
+
+  const setSubCertSelected = useCallback(
+    (parentCode, subCode, selected) => {
+      try {
+        setSubCertificationSelected(parentCode, subCode, selected);
+      } catch (err) {
+        console.error("[useCart] failed to update sub certification:", err);
+      }
+      const next = readLatest();
+      setCart(next);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event(CART_EVENT));
+      }
+    },
+    [readLatest]
+  );
   const setUnits = useCallback(
     (itemCode, value) => {
       const units = Math.max(1, Math.floor(Number(value) || 1));
@@ -220,5 +264,7 @@ export default function useCart() {
     remove,
     clear,
     refresh,
+        setCertSelected,       // NEW
+    setSubCertSelected,    // NEW
   };
 }
