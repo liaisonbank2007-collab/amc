@@ -4519,3 +4519,66 @@
   line-height: 1.3;
   max-width: 200px;
 }
+
+
+// ── Certification checkbox (top-level) ──
+.cartItem__certCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  background: rgba(176, 107, 0, 0.06);
+  border: 1px solid rgba(176, 107, 0, 0.22);
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #b06b00;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  input[type="checkbox"] {
+    accent-color: #cd7913;
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  em {
+    font-style: normal;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #4b5563;
+    margin-left: 0.3rem;
+  }
+
+  &:hover {
+    border-color: rgba(176, 107, 0, 0.4);
+    background: rgba(176, 107, 0, 0.1);
+  }
+}
+
+// ── Certification checkbox (sub-item) ──
+.subItem__certCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b06b00;
+  cursor: pointer;
+  user-select: none;
+
+  input[type="checkbox"] {
+    accent-color: #cd7913;
+    width: 12px;
+    height: 12px;
+    cursor: pointer;
+  }
+
+  span {
+    white-space: nowrap;
+  }
+}

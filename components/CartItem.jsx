@@ -16,6 +16,8 @@ import {
   hasVisitCap,
   MIN_DISCOUNT_MONTHS,
   getDurationOptionsForItem,
+    hasCertificationCharge,        // NEW
+  getCertificationChargeAmount,  // NEW
 } from "../lib/calculations";
 import QtyStepper from "./QtyStepper";
 import SubItem from "./SubItem";
@@ -32,28 +34,29 @@ export default function CartItem({
   onRemoveSub,
   onQuote,
   onAddMore,
+    onCertToggle,      // NEW
+  onSubCertToggle,   // NEW
 }) {
   const displayName = it.item_name || it.item_code;
+  const sector_type = it.sector_type || "Commercial"; // Default to "Commercial" if not provided
   const subItems = it.subItems || [];
-  const currentDuration = it.selectedDuration || "12 Months";
+  const currentDuration = it.selectedDuration || "12 Months"; 
   const durationOptions = getDurationOptionsForItem(it);
-
-  const { subtotal, discountPercentage, discountAmount, total, hasPayable } =
-    lineTotal(it, currentDuration);
-
-    const isFixed = it.custom_type === "Fixed";
-
+  const { subtotal, discountPercentage, discountAmount, total, hasPayable } = lineTotal(it, currentDuration);
+  const isFixed = it.custom_type === "Fixed";
   const showVisit = hasVisitControl(it);
   const showUnit = hasUnitControl(it);
-
   const capped = hasVisitCap(it);
   const maxVisits = capped ? getMaxVisits(it, currentDuration) : null;
-  
   const displayVisits = getScaledVisits(it, currentDuration); 
-
   const [visitWarning, setVisitWarning] = useState("");
   const warnTimerRef = useRef(null);
+  // Cert charge totals — label matches what's actually billed.
+  const parentCertAmount = getCertificationChargeAmount(it);
+  const perVisitCertCharge = Number(it.custom_certification_charge) || 0;
 
+
+  // ========================= Visit Control Handlers ========================
   const showVisitWarning = useCallback((msg) => {
     setVisitWarning(msg);
     if (warnTimerRef.current) clearTimeout(warnTimerRef.current);
@@ -67,21 +70,7 @@ export default function CartItem({
     []
   );
 
-  const handleDurationChange = (e) => {
-    const newDuration = e.target.value;
-    
-    if (capped) {
-      // ✅ FIX: Set visits directly to the new maximum for this duration
-      const newMaxScaled = getMaxVisits(it, newDuration);
-      onVisitsChange?.(it.item_code, newMaxScaled);
-    } else {
-      onVisitsChange?.(it.item_code, 1);
-    }
-
-    if (onDurationChange) onDurationChange(it.item_code, newDuration);
-  };
-
-  const handleVisitsChange = useCallback(
+ const handleVisitsChange = useCallback(
     (next) => {
       const n = Math.max(1, Math.floor(Number(next) || 1));
 
@@ -112,6 +101,7 @@ export default function CartItem({
     ]
   );
 
+
   const handleVisitClamp = useCallback(
     ({ reason, max }) => {
       if (!capped) return;
@@ -124,6 +114,28 @@ export default function CartItem({
     [capped, currentDuration, showVisitWarning]
   );
 
+
+
+  // ======================== Duration Control Handler ========================
+  const handleDurationChange = (e) => {
+    const newDuration = e.target.value;
+    
+    if (capped) {
+      // ✅ FIX: Set visits directly to the new maximum for this duration
+      const newMaxScaled = getMaxVisits(it, newDuration);
+      onVisitsChange?.(it.item_code, newMaxScaled);
+    } else {
+      onVisitsChange?.(it.item_code, 1);
+    }
+
+    if (onDurationChange) onDurationChange(it.item_code, newDuration);
+  };
+
+ 
+
+
+
+// ======================== Render Component ========================
   return (
     <li className={styles.cartItem}>
       <div className={styles.cartItem__main}>
@@ -133,12 +145,15 @@ export default function CartItem({
 
         <div className={styles.cartItem__body}>
           <div className={styles.cartItem__info}>
-            <span className={styles.cartItem__tag}>
+            {/* <span className={styles.cartItem__tag}>
               {it.amc_sub_type_name ||
                 it.amc_sub_type ||
                 it.amc_type_name ||
                 "AMC"}
-            </span>
+            </span> */}
+            <span className={styles.cartItem__tag}>
+  {(it.sector_type || "Commercial").toUpperCase()}
+</span>
             <h3 title={displayName}>{prettyName(displayName)}</h3>
           </div>
 
@@ -214,6 +229,34 @@ export default function CartItem({
                   </div>
                 )}
               </div>
+            )}
+
+
+
+           {hasCertificationCharge(it) && (
+              <label className={styles.cartItem__certCheck}>
+                <input
+                  type="checkbox"
+                  checked={it.certification_selected !== false}
+                  onChange={(e) =>
+                    onCertToggle?.(it.item_code, e.target.checked)
+                  }
+                />
+                <span>
+                  With Pre & Post Water Lab Testing
+                  <em>
+                    +{inr(parentCertAmount, it.currency)}
+                    {parentCertAmount > perVisitCertCharge &&
+                      displayVisits > 1 && (
+                        <small>
+                          {" "}
+                          ({inr(perVisitCertCharge, it.currency)} ×{" "}
+                          {displayVisits})
+                        </small>
+                      )}
+                  </em>
+                </span>
+              </label>
             )}
 
             <div className={styles.cartItem__duration}>
@@ -335,12 +378,15 @@ export default function CartItem({
               onVisitsChange={onSubVisitsChange}
               onUnitsChange={onSubUnitsChange}
               onRemove={onRemoveSub}
+               onCertToggle={onSubCertToggle}    // NEW
             />
           ))}
         </ul>
       )}
 
-      <div className={styles.cartItem__footer}>
+
+{/*=========================footer======================= */}
+      {/* <div className={styles.cartItem__footer}>
         <button
           type="button"
           className={styles.cartItem__addMore}
@@ -348,6 +394,7 @@ export default function CartItem({
         >
           + Add more items to this
         </button>
+        
 
         <div className={styles.cartItem__subtotal}>
           <span>Line total</span>
@@ -364,7 +411,7 @@ export default function CartItem({
             <strong>On request</strong>
           )}
         </div>
-      </div>
+      </div> */}
     </li>
   );
 }

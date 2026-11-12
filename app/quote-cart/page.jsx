@@ -18,6 +18,9 @@ import {
   monthsToDurationValue,
   durationValueToMonths,
   getScaledVisits,
+      setCertSelected,       // NEW
+    setSubCertSelected,    // NEW
+    getCertificationChargeAmount
 } from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
 
@@ -300,6 +303,8 @@ export default function QuoteCartPage() {
     remove: removeItem,
     clear: clearItems,
     refresh: refreshCart,
+        setCertSelected,       // NEW
+    setSubCertSelected,    // NEW
   } = useCart();
 
   const [form, setForm] = useState({
@@ -426,6 +431,7 @@ export default function QuoteCartPage() {
           units: Number(item.custom_unit) || 1,
           selectedDuration: monthsToDurationValue(custom_duration_months),
           _base_months: Number(custom_duration_months) || 1,
+          certification_selected: true,   // NEW — default checked
         },
       ]);
       refreshCart();
@@ -446,6 +452,8 @@ export default function QuoteCartPage() {
         ...item,
         visits: defaultVisits,
         units: Number(item.custom_unit) || 1,
+                certification_selected: true,   // NEW — default checked
+
       });
       refreshCart();
       const refreshed = readRawCart().find(
@@ -501,6 +509,20 @@ export default function QuoteCartPage() {
     [refreshCart]
   );
 
+
+    const handleCertToggle = useCallback(
+    (itemCode, selected) => {
+      setCertSelected(itemCode, selected);
+    },
+    [setCertSelected]
+  );
+
+  const handleSubCertToggle = useCallback(
+    (parentCode, subCode, selected) => {
+      setSubCertSelected(parentCode, subCode, selected);
+    },
+    [setSubCertSelected]
+  );
   const {
     subtotal,
     payableCount,
@@ -669,6 +691,10 @@ export default function QuoteCartPage() {
           stock_uom: it.stock_uom || it.uom || "Nos",
           duration: duration,
           discount_percentage: discount,
+
+                    // ── Certification ──
+          custom_certification_charge: getCertificationChargeAmount(it),
+          certification_included: it.certification_selected !== false,
         };
 
         if (it.gst_hsn_code) item.gst_hsn_code = it.gst_hsn_code;
@@ -1128,6 +1154,8 @@ const confirmResult = await Swal.fire({
                         setLineAddParent(parent);
                         setLineAddOpen(true);
                       }}
+                        onCertToggle={handleCertToggle}          // NEW
+  onSubCertToggle={handleSubCertToggle}    // NEW
                     />
                   ))}
                 </ul>
