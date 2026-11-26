@@ -130,7 +130,6 @@ export default function CatalogBody({
     return hasPayable;
   });
 
-  /* ── Collapsed by default ─────────────────────────────────────────── */
   const [selectedOpen, setSelectedOpen] = React.useState(false);
 
   return (
@@ -263,9 +262,6 @@ export default function CatalogBody({
         </div>
       )}
 
-      {/* ── COMPACT SELECTED BAR ────────────────────────────────────
-           Collapsed by default → always leaves the catalog list visible.
-           Tap the bar (or the chevron) to expand the full item list.  */}
       {selectedLines.length > 0 && (
         <section
           className={`${styles.catalogSelected} ${
@@ -424,6 +420,8 @@ export default function CatalogBody({
             return (
               <div
                 key={it.item_code}
+                data-catalog-item
+                data-item-code={it.item_code}
                 className={`${styles.catalogItem} ${
                   added ? styles["catalogItem--inCart"] : ""
                 }`}
@@ -447,7 +445,7 @@ export default function CatalogBody({
                   <button
                     type="button"
                     className={`${styles.catalogItem__add} ${styles["catalogItem__add--remove"]}`}
-                    onClick={() => onRemove(it)}
+                    onClick={(e) => onRemove(it, e.currentTarget)}
                   >
                     Remove
                     <span>×</span>
@@ -458,7 +456,7 @@ export default function CatalogBody({
                     className={`${styles.catalogItem__add} ${
                       added ? styles["catalogItem__add--added"] : ""
                     }`}
-                    onClick={() => onAdd(it)}
+                    onClick={(e) => onAdd(it, e.currentTarget)}
                   >
                     {addLabel(added)}
                     <span>+</span>

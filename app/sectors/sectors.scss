@@ -1,0 +1,426 @@
+.sectorPage {
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --ink: #0e1116;
+  --ink-2: #1a1f28;
+  --ink-3: #2a3038;
+  --muted: #6b7280;
+  --muted-2: #9ca3af;
+  --orange: #e8913a;
+  --orange-dark: #d97a1f;
+  --orange-deep: #a8531a;
+  --orange-soft: #fdf3e6;
+  --paper: #f6f4ef;
+  --cream: #f6f4ef;
+  --cream-deep: #efebe2;
+  --white: #fff;
+  --line: #e6e1d6;
+  --line-2: #ece7dc;
+  --radius: 18px;
+  --radius-lg: 28px;
+  --radius-xl: 36px;
+  --shadow-sm: 0 1px 2px rgba(15, 17, 22, .05);
+  --shadow-md: 0 18px 42px -18px rgba(15, 17, 22, .18);
+  --shadow-lg: 0 30px 70px -24px rgba(15, 17, 22, .22);
+  --ease: cubic-bezier(.22, 1, .36, 1);
+
+  color: var(--ink);
+  background: var(--cream);
+  overflow: hidden;
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+
+  *, *::before, *::after { box-sizing: border-box; }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; }
+  ::selection { background: var(--orange); color: var(--white); }
+
+  .sectorReveal {
+    opacity: 0;
+    transform: translateY(28px);
+    transition: opacity .75s ease, transform .85s var(--ease);
+    transition-delay: var(--delay, 0ms);
+    will-change: opacity, transform;
+  }
+  .sectorReveal.isVisible { opacity: 1; transform: translate3d(0,0,0); }
+  .sectorReveal--hero.isVisible { animation: sectorHeroEntrance 1s cubic-bezier(.16,1,.3,1) both; }
+  .sectorReveal--left.isVisible { animation: sectorSlideLeft .85s var(--ease) both; }
+  .sectorReveal--right.isVisible { animation: sectorSlideRight .85s var(--ease) both; }
+  .sectorReveal--up.isVisible { animation: sectorRiseIn .85s var(--ease) both; }
+  .sectorReveal--clip.isVisible { animation: sectorClipIn 1s var(--ease) both; }
+
+  @keyframes sectorHeroEntrance {
+    from { opacity: 0; transform: translateY(48px); filter: blur(9px); }
+    to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+  @keyframes sectorSlideLeft {
+    from { opacity: 0; transform: translateX(-42px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes sectorSlideRight {
+    from { opacity: 0; transform: translateX(42px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes sectorRiseIn {
+    from { opacity: 0; transform: translateY(38px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes sectorClipIn {
+    from { opacity: 0; clip-path: inset(0 0 80% 0); transform: translateY(25px); }
+    to { opacity: 1; clip-path: inset(0); transform: translateY(0); }
+  }
+
+  .sectorEyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--orange);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+    > span { width: 28px; height: 2px; background: currentColor; }
+    &.dark { color: var(--orange-deep); }
+  }
+
+  .sectorPrimaryBtn {
+    min-height: 56px;
+    padding: 16px 25px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+    border-radius: 100px;
+    border: 1px solid transparent;
+    background: var(--orange);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    transition: transform .4s var(--ease), background .4s, box-shadow .4s;
+    cursor: pointer;
+    svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.6; transition: transform .4s var(--ease); }
+    &:hover { background: var(--orange-dark); color: var(--ink); transform: translateY(-3px); box-shadow: 0 16px 36px -14px rgba(232,145,58,.65); }
+    &:hover svg { transform: translate(3px,-3px); }
+    &.light { background: var(--white); color: var(--ink); &:hover { background: var(--orange); } }
+  }
+
+  /* Hero */
+  .sectorHero {
+    min-height: 590px;
+    padding: 105px 9% 90px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 60px;
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-bottom: 1px solid var(--line);
+    background:
+      radial-gradient(ellipse 65% 65% at 88% 12%, rgba(232,145,58,.18), transparent 60%),
+      radial-gradient(ellipse 48% 55% at 5% 90%, rgba(168,83,26,.08), transparent 65%),
+      linear-gradient(180deg, var(--paper), var(--cream-deep));
+  }
+  .sectorHeroGlow {
+    position: absolute;
+    z-index: -1;
+    width: 460px;
+    height: 460px;
+    right: 5%;
+    top: 5%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(232,145,58,.12), transparent 68%);
+    filter: blur(12px);
+    animation: sectorGlowPulse 7s ease-in-out infinite alternate;
+  }
+  @keyframes sectorGlowPulse { from { transform: scale(.88); opacity: .55; } to { transform: scale(1.12); opacity: 1; } }
+  .sectorHeroContent { max-width: 790px; position: relative; z-index: 2; }
+  .sectorHero h1 {
+    margin: 0 0 25px;
+    color: var(--ink);
+    font-size: clamp(44px, 5.4vw, 78px);
+    line-height: 1.01;
+    letter-spacing: -.055em;
+    font-weight: 750;
+    span { display: block; color: var(--orange-deep); }
+  }
+  .sectorHeroContent > p { max-width: 620px; margin: 0 0 34px; color: var(--muted); font-size: 16px; line-height: 1.85; }
+  .sectorHeroActions { display: flex; align-items: center; gap: 25px; flex-wrap: wrap; }
+  .sectorTextLink { display: inline-flex; gap: 10px; align-items: center; color: var(--ink-2); font-size: 12px; font-weight: 700; transition: color .25s; }
+  .sectorTextLink span { color: var(--orange-deep); font-size: 18px; transition: transform .25s; }
+  .sectorTextLink:hover { color: var(--orange-deep); }
+  .sectorTextLink:hover span { transform: translateY(4px); }
+
+  .sectorHeroSide { width: 255px; flex: 0 0 255px; text-align: right; position: relative; z-index: 2; }
+  .sectorHeroOrbit { width: 220px; height: 220px; margin-left: auto; position: relative; display: grid; place-items: center; }
+  .sectorOrbitRing { position: absolute; inset: 9px; border: 1px solid rgba(168,83,26,.22); border-radius: 50%; }
+  .sectorOrbitRing--one { animation: sectorOrbit 24s linear infinite; border-style: dashed; }
+  .sectorOrbitRing--two { inset: 28px; border-color: rgba(232,145,58,.42); animation: sectorOrbit 18s linear infinite reverse; }
+  @keyframes sectorOrbit { to { transform: rotate(360deg); } }
+  .sectorOrbitDot { position: absolute; width: 11px; height: 11px; right: 24px; top: 35px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 7px rgba(232,145,58,.13), 0 0 24px rgba(232,145,58,.5); }
+  .sectorHeroNumber { color: var(--orange-deep); font-size: 112px; line-height: 1; letter-spacing: -.08em; font-weight: 750; }
+  .sectorHeroSideText { display: flex; flex-direction: column; gap: 6px; margin-top: 18px; }
+  .sectorHeroSideText strong { color: var(--ink); font-size: 16px; }
+  .sectorHeroSideText span, .sectorHeroTag { color: var(--muted); font-size: 10px; letter-spacing: .19em; text-transform: uppercase; font-weight: 700; }
+  .sectorHeroLine { height: 1px; background: var(--line); margin: 22px 0; }
+  .sectorHeroBottom { position: absolute; bottom: 25px; left: 9%; right: 9%; display: flex; justify-content: space-between; color: rgba(107,114,128,.75); font-size: 9px; letter-spacing: .18em; font-weight: 700; }
+
+  /* Overview */
+  .sectorOverview, .sectorIndustries { padding: 105px 9%; background: var(--cream); }
+  .sectorSectionHeading { display: flex; align-items: end; justify-content: space-between; gap: 40px; margin-bottom: 48px; }
+  .sectorSectionHeading h2, .sectorIndustriesHeader h2, .sectorCTA h2 {
+    margin: 0; color: var(--ink); font-size: clamp(34px,4.2vw,58px); line-height: 1.08; font-weight: 750; letter-spacing: -.045em;
+  }
+  .sectorSectionHeading h2 span, .sectorIndustriesHeader h2 span { color: var(--orange-deep); }
+  .sectorSectionHeading > p, .sectorIndustriesHeader p { max-width: 390px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.85; }
+
+  .sectorCards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 19px; }
+  .sectorCard {
+    min-height: 355px;
+    position: relative;
+    overflow: hidden;
+    padding: 27px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(255,255,255,.48);
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+    isolation: isolate;
+    transition: transform .55s var(--ease), border-color .4s, background .4s, box-shadow .5s;
+    &:hover, &.active { transform: translateY(-8px); border-color: rgba(168,83,26,.55); background: #fffaf3; box-shadow: var(--shadow-md); }
+    &:focus-visible { outline: 3px solid rgba(232,145,58,.55); outline-offset: 4px; }
+    &.active::after { transform: scaleX(1); }
+    &::after { content: ""; position: absolute; z-index: 3; left: 27px; right: 27px; bottom: 0; height: 3px; background: var(--orange); transform: scaleX(0); transform-origin: left; transition: transform .5s var(--ease); }
+  }
+  .sectorCardTop { display: flex; justify-content: space-between; align-items: center; position: relative; z-index: 2; }
+  .sectorCardNumber { color: var(--orange-deep); font-size: 12px; letter-spacing: .15em; font-weight: 800; }
+  .sectorCardArrow { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 50%; color: var(--orange-deep); transition: transform .4s var(--ease), background .3s, color .3s; }
+  .sectorCardArrow svg, .sectorListArrow svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+  .sectorCard:hover .sectorCardArrow, .sectorCard.active .sectorCardArrow { transform: rotate(45deg); background: var(--orange); color: var(--ink); border-color: var(--orange); }
+  .sectorCardGraphic { position: absolute; width: 205px; height: 205px; top: 62px; right: -12px; opacity: .72; pointer-events: none; }
+  .sectorGraphicShape { position: absolute; inset: 20px; border: 1px solid rgba(168,83,26,.23); border-radius: 50%; transition: transform .8s var(--ease), border-color .4s; }
+  .sectorGraphicShape::before, .sectorGraphicShape::after { content: ""; position: absolute; border: 1px solid rgba(168,83,26,.2); border-radius: 50%; }
+  .sectorGraphicShape::before { inset: 22px; }
+  .sectorGraphicShape::after { inset: 46px; }
+  .sectorGraphicShape--residential { border-radius: 45% 45% 14% 14%; transform: rotate(35deg); }
+  .sectorGraphicShape--commercial { border-radius: 18%; transform: rotate(45deg); }
+  .sectorGraphicShape--industrial { border-radius: 8px; transform: rotate(25deg) scale(.88); }
+  .sectorGraphicLine { position: absolute; width: 150%; height: 1px; top: 50%; left: -20%; background: linear-gradient(90deg, transparent, rgba(168,83,26,.35), transparent); transform: rotate(-35deg); }
+  .sectorGraphicDot { position: absolute; width: 9px; height: 9px; right: 36px; top: 44px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 7px rgba(232,145,58,.12); }
+  .sectorCard:hover .sectorGraphicShape, .sectorCard.active .sectorGraphicShape { transform: rotate(70deg) scale(1.08); border-color: rgba(168,83,26,.5); }
+  .sectorCardBottom { display: flex; flex-direction: column; position: relative; z-index: 2; }
+  .sectorCardLabel { color: var(--muted); font-size: 9px; letter-spacing: .24em; font-weight: 800; }
+  .sectorCardTitle { margin: 12px 0 8px; color: var(--ink); font-size: 29px; line-height: 1.15; font-weight: 750; letter-spacing: -.035em; }
+  .sectorCardDescription { max-width: 270px; min-height: 45px; color: var(--muted); font-size: 13px; line-height: 1.65; }
+  .sectorCardExplore { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--orange-deep); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+  .sectorCardExplore span { font-size: 17px; transition: transform .3s; }
+  .sectorCard:hover .sectorCardExplore span, .sectorCard.active .sectorCardExplore span { transform: translate(3px,-3px); }
+
+  /* Industry explorer */
+  .sectorIndustries { background: var(--cream-deep); }
+  .sectorIndustriesHeader { display: flex; align-items: end; justify-content: space-between; gap: 35px; margin-bottom: 45px; }
+  .sectorIndustriesHeader p { max-width: 530px; margin-top: 14px; }
+  .sectorSwitcher { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 100px; background: var(--white); }
+  .sectorSwitcher button { padding: 12px 19px; border: 0; border-radius: 100px; background: transparent; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; transition: background .35s var(--ease), color .35s, box-shadow .35s; }
+  .sectorSwitcher button:hover { color: var(--ink); }
+  .sectorSwitcher button.selected { background: var(--orange); color: var(--ink); box-shadow: 0 5px 15px rgba(168,83,26,.15); }
+  .sectorSwitcher button:focus-visible { outline: 2px solid var(--orange-deep); outline-offset: 3px; }
+
+  .sectorDetail { display: grid; grid-template-columns: .78fr 1.55fr; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--white); box-shadow: var(--shadow-sm); animation: sectorPanelIn .65s var(--ease) both; }
+  @keyframes sectorPanelIn { from { opacity: 0; transform: translateY(18px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .sectorDetailIntro {
+    min-height: 520px;
+    position: relative;
+    overflow: hidden;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    background:
+      radial-gradient(ellipse 90% 65% at 100% 0%, rgba(232,145,58,.28), transparent 60%),
+      linear-gradient(140deg, #a8531a 0%, #7a3a10 100%);
+    color: var(--white);
+  }
+  .sectorDetailKicker { position: relative; z-index: 1; color: rgba(253,243,230,.85); font-size: 10px; letter-spacing: .23em; font-weight: 800; }
+  .sectorDetailBigNumber { position: absolute; right: -12px; top: 28px; color: rgba(255,255,255,.09); font-size: 190px; line-height: 1; letter-spacing: -.1em; font-weight: 800; pointer-events: none; }
+  .sectorDetailIntro h3 { position: relative; z-index: 1; margin: 55px 0 14px; color: var(--white); font-size: clamp(29px,3vw,39px); line-height: 1.12; letter-spacing: -.04em; font-weight: 750; }
+  .sectorDetailIntro h4 { position: relative; z-index: 1; margin: 0; color: rgba(253,243,230,.9); font-size: 14px; line-height: 1.6; font-weight: 650; }
+  .sectorDetailIntro p { position: relative; z-index: 1; margin: 18px 0 30px; color: rgba(253,243,230,.76); font-size: 13px; line-height: 1.85; }
+  .sectorDetailStats { display: flex; align-items: center; gap: 14px; width: 100%; margin-top: auto; padding-top: 23px; border-top: 1px solid rgba(255,255,255,.25); }
+  .sectorDetailStats strong { color: var(--white); font-size: 43px; line-height: 1; letter-spacing: -.05em; }
+  .sectorDetailStats span { color: rgba(253,243,230,.75); font-size: 11px; line-height: 1.55; }
+
+  .sectorIndustryList { padding: 38px 40px; }
+  .sectorListHeading { display: flex; align-items: end; justify-content: space-between; gap: 15px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+  .sectorListHeading > div { display: flex; flex-direction: column; gap: 6px; }
+  .sectorListEyebrow { color: var(--orange-deep); font-size: 9px; letter-spacing: .2em; font-weight: 800; }
+  .sectorListHeading strong { color: var(--ink); font-size: 21px; letter-spacing: -.025em; }
+  .sectorListCount { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .15em; white-space: nowrap; }
+  .sectorListGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); column-gap: 28px; }
+  .sectorListItem { min-height: 66px; display: flex; align-items: center; gap: 13px; border-bottom: 1px solid var(--line-2); transition: padding .35s var(--ease), background .3s; animation: sectorItemIn .55s var(--ease) both; animation-delay: calc(var(--item-index) * 35ms); }
+  @keyframes sectorItemIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .sectorListItem:hover { padding-left: 7px; background: linear-gradient(90deg, rgba(253,243,230,.75), transparent); }
+  .sectorListNumber { flex: 0 0 22px; color: var(--orange-deep); font-size: 10px; letter-spacing: .08em; font-weight: 800; }
+  .sectorListName { flex: 1; color: var(--ink-3); font-size: 12px; line-height: 1.5; font-weight: 600; }
+  .sectorListArrow { color: #b8aa98; transition: transform .3s, color .3s; }
+  .sectorListItem:hover .sectorListArrow { color: var(--orange-deep); transform: translate(3px,-3px); }
+
+  /* Why choose us */
+  .sectorWhy { padding: 105px 9%; background: var(--cream); }
+  .sectorWhyGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 19px; }
+  .sectorWhyCard {
+    padding: 32px 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: rgba(255,255,255,.5);
+    transition: transform .5s var(--ease), border-color .4s, background .4s, box-shadow .5s;
+    &:hover { transform: translateY(-6px); border-color: rgba(168,83,26,.45); background: #fffaf3; box-shadow: var(--shadow-md); }
+  }
+  .sectorWhyNumber { display: inline-block; margin-bottom: 18px; color: var(--orange-deep); font-size: 12px; font-weight: 800; letter-spacing: .15em; }
+  .sectorWhyCard h3 { margin: 0 0 10px; color: var(--ink); font-size: 20px; line-height: 1.25; letter-spacing: -.025em; font-weight: 750; }
+  .sectorWhyCard p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.8; }
+
+  /* Process */
+  .sectorProcess { padding: 105px 9%; background: var(--cream-deep); }
+  .sectorProcessTrack { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 19px; }
+  .sectorProcessStep {
+    position: relative;
+    padding: 34px 26px 30px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    background: var(--white);
+    transition: transform .5s var(--ease), box-shadow .5s;
+    &:hover { transform: translateY(-6px); box-shadow: var(--shadow-md); }
+    &::before { content: ""; position: absolute; top: 50%; right: -19px; width: 19px; height: 1px; background: var(--line); }
+    &:last-child::before { display: none; }
+  }
+  .sectorProcessDot { position: absolute; top: -7px; left: 26px; width: 14px; height: 14px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 0 6px rgba(232,145,58,.15); }
+  .sectorProcessStepNumber { display: block; margin-bottom: 14px; color: var(--orange-deep); font-size: 34px; line-height: 1; letter-spacing: -.05em; font-weight: 750; }
+  .sectorProcessStep h3 { margin: 0 0 9px; color: var(--ink); font-size: 18px; letter-spacing: -.02em; font-weight: 750; }
+  .sectorProcessStep p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.75; }
+
+  /* FAQ */
+  .sectorFAQ { padding: 105px 9%; background: var(--cream); }
+  .sectorFAQList { display: flex; flex-direction: column; gap: 12px; max-width: 900px; }
+  .sectorFAQItem {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--white);
+    padding: 0 26px;
+    transition: border-color .3s, box-shadow .4s;
+    &[open] { border-color: rgba(168,83,26,.4); box-shadow: var(--shadow-sm); }
+    summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 22px 0;
+      cursor: pointer;
+      list-style: none;
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -.01em;
+      &::-webkit-details-marker { display: none; }
+    }
+    p { margin: 0; padding: 0 0 24px; max-width: 760px; color: var(--muted); font-size: 13.5px; line-height: 1.85; }
+  }
+  .sectorFAQIcon {
+    position: relative;
+    flex: 0 0 24px;
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    transition: transform .4s var(--ease), background .3s, border-color .3s;
+    &::before, &::after { content: ""; position: absolute; top: 50%; left: 50%; background: var(--orange-deep); transform: translate(-50%, -50%); }
+    &::before { width: 10px; height: 1.5px; }
+    &::after { width: 1.5px; height: 10px; transition: transform .4s; }
+  }
+  .sectorFAQItem[open] .sectorFAQIcon {
+    background: var(--orange);
+    border-color: var(--orange);
+    &::before, &::after { background: var(--ink); }
+    &::after { transform: translate(-50%, -50%) rotate(90deg); }
+  }
+
+  /* CTA */
+  .sectorCTA {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 35px;
+    margin: 85px 9%;
+    padding: 65px 6%;
+    border-radius: var(--radius-xl);
+    color: var(--white);
+    background: radial-gradient(ellipse 60% 60% at 90% 20%, #57331e, transparent 55%), linear-gradient(135deg,#a8531a 0%,#7a3a10 100%);
+  }
+  .sectorCTAGlow { position: absolute; z-index: -1; width: 360px; height: 360px; right: 15%; top: -65%; border: 1px solid rgba(255,255,255,.13); border-radius: 50%; box-shadow: 0 0 0 35px rgba(255,255,255,.025), 0 0 0 70px rgba(255,255,255,.02); }
+  .sectorCTAContent { position: relative; z-index: 1; }
+  .sectorCTA .sectorEyebrow { color: rgba(253,243,230,.75); }
+  .sectorCTA h2 { color: var(--white); margin: 0 0 15px; }
+  .sectorCTA p { max-width: 520px; margin: 0; color: rgba(253,243,230,.76); font-size: 14px; line-height: 1.8; }
+
+  /* Responsive */
+  @media (max-width: 1100px) {
+    .sectorHero { padding-left: 6%; padding-right: 6%; }
+    .sectorOverview, .sectorIndustries, .sectorWhy, .sectorProcess, .sectorFAQ { padding-left: 6%; padding-right: 6%; }
+    .sectorDetail { grid-template-columns: 1fr; }
+    .sectorDetailIntro { min-height: 390px; }
+    .sectorCTA { margin-left: 6%; margin-right: 6%; }
+    .sectorProcessTrack { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .sectorProcessStep::before { display: none; }
+  }
+  @media (max-width: 900px) {
+    .sectorHero { min-height: auto; padding-top: 85px; padding-bottom: 95px; }
+    .sectorHeroSide { width: 190px; flex-basis: 190px; }
+    .sectorHeroOrbit { width: 180px; height: 180px; }
+    .sectorHeroNumber { font-size: 90px; }
+    .sectorSectionHeading, .sectorIndustriesHeader { align-items: flex-start; flex-direction: column; gap: 24px; }
+    .sectorSectionHeading > p { max-width: 620px; }
+    .sectorCards { gap: 13px; }
+    .sectorCard { min-height: 330px; padding: 22px; }
+    .sectorCardTitle { font-size: 24px; }
+    .sectorCardGraphic { transform: scale(.82); transform-origin: top right; }
+    .sectorWhyGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 680px) {
+    .sectorHero { padding: 72px 6% 80px; }
+    .sectorHeroSide { display: none; }
+    .sectorHero h1 { font-size: clamp(40px,10vw,55px); }
+    .sectorHeroContent > p { font-size: 14px; }
+    .sectorHeroActions { align-items: flex-start; flex-direction: column; gap: 18px; }
+    .sectorHeroBottom { left: 6%; right: 6%; gap: 12px; overflow: hidden; white-space: nowrap; font-size: 8px; }
+    .sectorOverview, .sectorIndustries, .sectorWhy, .sectorProcess, .sectorFAQ { padding: 70px 6%; }
+    .sectorSectionHeading h2, .sectorIndustriesHeader h2 { font-size: 36px; }
+    .sectorCards { grid-template-columns: 1fr; }
+    .sectorCard { min-height: 285px; }
+    .sectorCardGraphic { transform: none; }
+    .sectorSwitcher { width: 100%; border-radius: 16px; justify-content: stretch; }
+    .sectorSwitcher button { flex: 1; padding: 12px 7px; border-radius: 12px; font-size: 9px; letter-spacing: .07em; }
+    .sectorDetailIntro { min-height: 390px; padding: 30px 25px; }
+    .sectorDetailIntro h3 { margin-top: 48px; font-size: 31px; }
+    .sectorIndustryList { padding: 28px 23px; }
+    .sectorListGrid { grid-template-columns: 1fr; }
+    .sectorListItem { min-height: 59px; }
+    .sectorWhyGrid, .sectorProcessTrack { grid-template-columns: 1fr; }
+    .sectorFAQItem { padding: 0 20px; }
+    .sectorFAQItem summary { font-size: 14px; padding: 19px 0; }
+    .sectorCTA { margin: 55px 6%; padding: 42px 27px; align-items: flex-start; flex-direction: column; border-radius: var(--radius-lg); }
+    .sectorCTA h2 { font-size: 36px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    &, *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    .sectorReveal { opacity: 1; transform: none; filter: none; clip-path: none; }
+  }
+}

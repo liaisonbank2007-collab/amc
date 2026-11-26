@@ -79,11 +79,33 @@ function parseFrappeError(result, status) {
   return { message: friendlyMessage, field };
 }
 
+
+function isApiSuccess(result, response) {
+  if (!response.ok || result?.exception) return false;
+
+  if (
+    result?.message?.success === false ||
+    result?.data?.success === false ||
+    result?.success === false
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
 export default function RegistrationPage() {
   const router = useRouter();
   const [apiMessage, setApiMessage] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const [showOtpModal, setShowOtpModal] = useState(false);
+const [otp, setOtp] = useState("");
+const [otpLoading, setOtpLoading] = useState(false);
+const [otpMessage, setOtpMessage] = useState(null);
+const [pendingRegistration, setPendingRegistration] = useState(null);
+const [resendingOtp, setResendingOtp] = useState(false);
 
   const {
     register,
@@ -105,60 +127,167 @@ export default function RegistrationPage() {
 
   const password = watch('password', '');
 
- const onSubmit = async (data) => {
+const onSubmit = async (data) => {
   setIsSubmitting(true);
   setApiMessage(null);
 
   try {
-    const response = await fetch('/api/frappe/register_user', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const response = await fetch("/api/frappe/register_user", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify(data),
     });
 
     const result = await response.json().catch(() => null);
 
-    // ✅ Detect success
-    const isSuccess =
-      response.ok &&
-      !result?.exception &&
-      (result?.message?.success === true ||
-        result?.data?.success === true ||
-        (result?.message &&
-          typeof result.message === 'object' &&
-          result.message.success));
+    if (!isApiSuccess(result, response)) {
+      const { message, field } = parseFrappeError(
+        result,
+        response.status
+      );
 
-    if (isSuccess) {
-      const msg =
-        result?.message?.message ||
-        result?.data?.message ||
-        'Registration successful! Redirecting to login…';
+      if (field) {
+        setError(field, { type: "server", message });
+      }
 
-      setApiMessage({ type: 'success', text: msg });
-      reset();
-      setTimeout(() => router.push('/login'), 1200);
-      return;
+      throw new Error(message);
     }
 
-    // ❌ Error path — parse the messy Frappe response
-    const { message, field } = parseFrappeError(result, response.status);
+    setPendingRegistration(data);
+    setOtp("");
+    setOtpMessage({
+      type: "success",
+      text: "OTP sent successfully. Please verify your email.",
+    });
 
-    // Attach error to the specific field so the user sees it inline
-    if (field) {
-      setError(field, { type: 'server', message });
-    }
-
-    setApiMessage({ type: 'error', text: message });
+    setShowOtpModal(true);
   } catch (error) {
-    console.error('Registration error:', error);
     setApiMessage({
-      type: 'error',
-      text: 'Network error. Please try again later.',
+      type: "error",
+      text: error.message || "Registration failed. Please try again.",
     });
   } finally {
     setIsSubmitting(false);
   }
 };
+
+const handleVerifyOtp = async (e) => {
+  e.preventDefault();
+
+  if (!/^[0-9]{6}$/.test(otp)) {
+    setOtpMessage({
+      type: "error",
+      text: "Please enter a valid 6-digit OTP.",
+    });
+    return;
+  }
+
+  if (!pendingRegistration) return;
+
+  setOtpLoading(true);
+  setOtpMessage(null);
+
+  try {
+    const response = await fetch(
+      "/api/frappe/verify_registration_otp",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: pendingRegistration.email,
+          otp: otp,
+        }),
+      }
+    );
+
+    const result = await response.json().catch(() => null);
+
+    if (!isApiSuccess(result, response)) {
+      throw new Error(
+        result?.message?.message ||
+        result?.message ||
+        result?.data?.message ||
+        "Invalid or expired OTP. Please try again."
+      );
+    }
+
+    setOtpMessage({
+      type: "success",
+      text: "Email verified and registration completed successfully!",
+    });
+
+    setApiMessage({
+      type: "success",
+      text: "Your account has been created successfully!",
+    });
+
+    setTimeout(() => {
+      setShowOtpModal(false);
+      reset();
+      setPendingRegistration(null);
+      router.push("/login");
+    }, 1200);
+
+  } catch (error) {
+    setOtpMessage({
+      type: "error",
+      text: error.message || "OTP verification failed.",
+    });
+  } finally {
+    setOtpLoading(false);
+  }
+};
+
+const handleResendOtp = async () => {
+  if (!pendingRegistration?.email || resendingOtp) return;
+
+  setResendingOtp(true);
+  setOtpMessage(null);
+
+  try {
+    const response = await fetch(
+      "/api/frappe/send_registration_otp",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: pendingRegistration.email,
+        }),
+      }
+    );
+
+    const result = await response.json().catch(() => null);
+
+    if (!isApiSuccess(result, response)) {
+      throw new Error(
+        result?.message?.message ||
+        result?.message ||
+        "Unable to resend OTP."
+      );
+    }
+
+    setOtp("");
+    setOtpMessage({
+      type: "success",
+      text: "A new verification code has been sent.",
+    });
+
+  } catch (error) {
+    setOtpMessage({
+      type: "error",
+      text: error.message || "Unable to resend OTP.",
+    });
+  } finally {
+    setResendingOtp(false);
+  }
+};
+
   const getStrength = (pw) => {
     let score = 0;
     if (!pw) return { score: 0, label: '', color: '' };
@@ -417,6 +546,140 @@ export default function RegistrationPage() {
               )}
             </button>
           </form>
+
+          {showOtpModal && (
+  <div
+    className={styles.otpOverlay}
+    onMouseDown={(e) => {
+      if (e.target === e.currentTarget && !otpLoading) {
+        setShowOtpModal(false);
+      }
+    }}
+  >
+    <div
+      className={styles.otpModal}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="otpTitle"
+    >
+      <button
+        type="button"
+        className={styles.otpClose}
+        onClick={() => setShowOtpModal(false)}
+        disabled={otpLoading}
+        aria-label="Close OTP verification"
+      >
+        &times;
+      </button>
+
+      <div className={styles.otpIcon}>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        >
+          <rect x="3" y="5" width="18" height="14" rx="3" />
+          <path d="m3 7 9 6 9-6" />
+          <path d="m15 16 2 2 4-4" />
+        </svg>
+      </div>
+
+      <span className={styles.otpEyebrow}>
+        EMAIL AUTHENTICATION
+      </span>
+
+      <h2 id="otpTitle" className={styles.otpTitle}>
+        Verify your email
+      </h2>
+
+      <p className={styles.otpDescription}>
+        We've sent a 6-digit verification code to
+      </p>
+
+      <div className={styles.otpEmail}>
+        {pendingRegistration?.email}
+      </div>
+
+      <form onSubmit={handleVerifyOtp}>
+        <label htmlFor="registrationOtp" className={styles.otpLabel}>
+          ENTER VERIFICATION CODE
+        </label>
+
+        <input
+          id="registrationOtp"
+          type="text"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          maxLength={6}
+          placeholder="000000"
+          value={otp}
+          onChange={(e) => {
+            setOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+            setOtpMessage(null);
+          }}
+          className={styles.otpInput}
+          disabled={otpLoading}
+          autoFocus
+          required
+        />
+
+        {otpMessage && (
+          <div
+            className={`${styles.otpAlert} ${
+              otpMessage.type === "success"
+                ? styles.otpAlertSuccess
+                : styles.otpAlertError
+            }`}
+            role="status"
+          >
+            {otpMessage.text}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          className={styles.otpVerifyButton}
+          disabled={otpLoading || otp.length !== 6}
+        >
+          {otpLoading ? (
+            <>
+              <span className={styles.otpSpinner} />
+              Verifying...
+            </>
+          ) : (
+            <>
+              Verify & Create Account
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12h14m-7-7 7 7-7 7" />
+              </svg>
+            </>
+          )}
+        </button>
+      </form>
+
+      <div className={styles.otpResend}>
+        Didn't receive the code?
+
+        <button
+          type="button"
+          onClick={handleResendOtp}
+          disabled={resendingOtp || otpLoading}
+        >
+          {resendingOtp ? "Sending..." : "Resend OTP"}
+        </button>
+      </div>
+
+      <div className={styles.otpSecurity}>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <rect x="4" y="10" width="16" height="11" rx="2" />
+          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+        </svg>
+        Secure email verification by Liaison Bank
+      </div>
+    </div>
+  </div>
+)}
 
           <p className={styles.footer}>
             Already have an account?{' '}

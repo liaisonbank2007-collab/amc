@@ -279,7 +279,7 @@ export default function SubServicePage() {
 
               <div className="ssCta__actions">
                 <a
-                  href="https://www.liaisonbank.com/contact-us-liaison-bank"
+                  href="/contact"
                   className="ssBtn ssBtn--primaryDark"
                   target="_blank"
                   rel="noopener noreferrer"

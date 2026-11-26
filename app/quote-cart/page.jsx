@@ -2,13 +2,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 
 import AMCNavbar from "@/components/Navbar/Navbar.jsx";
 import { addToCart, appendToCartItem, removeSubItem } from "@/lib/cart";
 import styles from "./cart.module.scss";
-
+import { useToast } from "@/components/providers/ToastProvider";
 import { hasUnitControl, hasVisitControl } from "../../lib/visibility";
 import {
   computeItemAmount,
@@ -18,11 +19,12 @@ import {
   monthsToDurationValue,
   durationValueToMonths,
   getScaledVisits,
-      setCertSelected,       // NEW
-    setSubCertSelected,    // NEW
-    getCertificationChargeAmount
+  setCertSelected,
+  setSubCertSelected,
+  getCertificationChargeAmount,
 } from "../../lib/calculations";
 import { buildPrintUrl, showQuoteSuccessAlert } from "../../lib/api";
+import { isUserLoggedIn } from "@/lib/auth";
 
 import useCart from "../../hooks/useCart";
 
@@ -35,7 +37,6 @@ import AddItemsModal from "../../components/modals/AddItemsModal";
 import LineAddModal from "../../components/modals/LineAddModal";
 import QuoteModal from "../../components/modals/QuoteModal";
 
-// All Frappe calls go through same-origin Next.js proxy routes.
 const API_URL = "/api/frappe/get_amc_items";
 const QUOTE_API = "/api/method/create_amc_quotation";
 const SALES_ORDER_API = "/api/method/create_sales_order_from_quotation";
@@ -43,7 +44,6 @@ const RAZORPAY_CHECKOUT_API = "/api/method/get_razorpay_checkout_details";
 const DEFAULT_SHARE_KEY = "592d628310f9ca4:669d8384d3f1ef5";
 const CART_STORAGE_KEY = "amc_cart";
 
-// Shared SweetAlert2 styling (matches cart.module.scss)
 const SWAL_CLASSES = {
   popup: "amc-quote-swal-popup",
   title: "amc-quote-swal-title",
@@ -62,7 +62,6 @@ function readRawCart() {
   }
 }
 
-// Turns a Frappe error body into a readable string.
 function parseFrappeError(raw, status) {
   let detail = `HTTP ${status}`;
   try {
@@ -92,7 +91,6 @@ function parseFrappeError(raw, status) {
   return detail;
 }
 
-// POST /api/method/create_sales_order_from_quotation with { quotation }.
 async function createSalesOrderFromQuotation(quotationId) {
   if (!quotationId) {
     return { ok: false, error: "Quotation ID is missing." };
@@ -293,6 +291,8 @@ async function openRazorpayCheckout({ paymentToken, paymentRequest }) {
 // ---------- page ----------
 
 export default function QuoteCartPage() {
+  const router = useRouter();
+
   const {
     cart,
     mounted,
@@ -303,9 +303,27 @@ export default function QuoteCartPage() {
     remove: removeItem,
     clear: clearItems,
     refresh: refreshCart,
-        setCertSelected,       // NEW
-    setSubCertSelected,    // NEW
+    setCertSelected,
+    setSubCertSelected,
   } = useCart();
+
+  // ────────────────────────────────────────────────────────────
+  // AUTH GUARD — same check the navbar uses (isUserLoggedIn)
+  // ────────────────────────────────────────────────────────────
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authed, setAuthed] = useState(false);
+
+  useEffect(() => {
+    if (isUserLoggedIn()) {
+      setAuthed(true);
+    } else {
+      setAuthed(false);
+      router.replace(
+        `/login?redirect=${encodeURIComponent("/quote-cart")}`
+      );
+    }
+    setAuthChecked(true);
+  }, [router]);
 
   const [form, setForm] = useState({
     name: "",
@@ -332,7 +350,7 @@ export default function QuoteCartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [createdQuote, setCreatedQuote] = useState(null);
-  const [toast, setToast] = useState("");
+  const { toast } = useToast();
 
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteItems, setQuoteItems] = useState(null);
@@ -349,10 +367,10 @@ export default function QuoteCartPage() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  const showToast = useCallback((msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 2200);
-  }, []);
+  const showToast = useCallback(
+    (msg, type = "success") => toast(msg, type),
+    [toast]
+  );
 
   useEffect(() => {
     const anyModalOpen = quoteOpen || addOpen || lineAddOpen;
@@ -406,7 +424,7 @@ export default function QuoteCartPage() {
   const handleRemove = useCallback(
     (itemCode) => {
       removeItem(itemCode);
-      showToast("Item removed");
+      showToast("Item removed", "info");
     },
     [removeItem, showToast]
   );
@@ -431,7 +449,7 @@ export default function QuoteCartPage() {
           units: Number(item.custom_unit) || 1,
           selectedDuration: monthsToDurationValue(custom_duration_months),
           _base_months: Number(custom_duration_months) || 1,
-          certification_selected: true,   // NEW — default checked
+          certification_selected: true,
         },
       ]);
       refreshCart();
@@ -452,8 +470,7 @@ export default function QuoteCartPage() {
         ...item,
         visits: defaultVisits,
         units: Number(item.custom_unit) || 1,
-                certification_selected: true,   // NEW — default checked
-
+        certification_selected: true,
       });
       refreshCart();
       const refreshed = readRawCart().find(
@@ -473,7 +490,7 @@ export default function QuoteCartPage() {
       refreshCart();
       const refreshed = readRawCart().find((c) => c.item_code === parentCode);
       if (refreshed) setLineAddParent(refreshed);
-      showToast("Sub-item removed");
+      showToast("Sub-item removed", "info");
     },
     [refreshCart, showToast]
   );
@@ -509,8 +526,7 @@ export default function QuoteCartPage() {
     [refreshCart]
   );
 
-
-    const handleCertToggle = useCallback(
+  const handleCertToggle = useCallback(
     (itemCode, selected) => {
       setCertSelected(itemCode, selected);
     },
@@ -523,6 +539,7 @@ export default function QuoteCartPage() {
     },
     [setSubCertSelected]
   );
+
   const {
     subtotal,
     payableCount,
@@ -686,13 +703,11 @@ export default function QuoteCartPage() {
           custom_unit: it.custom_unit || " ",
           qty: units,
           custom_visit: visits,
-          // rate: Number(subtotal.toFixed(2)),
           rate: Number(it.rate || 0),
           stock_uom: it.stock_uom || it.uom || "Nos",
           duration: duration,
           discount_percentage: discount,
 
-                    // ── Certification ──
           custom_certification_charge: getCertificationChargeAmount(it),
           certification_included: it.certification_selected !== false,
         };
@@ -715,36 +730,30 @@ export default function QuoteCartPage() {
       e.preventDefault();
       if (!activeQuoteItems.length) return;
 
-    // ────────────────────────────────────────────────────────────
-// STEP 0a: Confirmation SweetAlert before creating quote
-// ────────────────────────────────────────────────────────────
-const confirmResult = await Swal.fire({
-  icon: "question",
-  title: "Create quote & proceed to payment?",
-  html: `
-    <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
-      We'll create your quotation, then open the secure
-      <strong>Razorpay</strong> payment window.
-    </p>
-    <p style="margin:0;font-size:0.8rem;color:#6b7280;line-height:1.5;">
-      Once payment is completed, you'll be taken to your quote
-      confirmation page where you can view and download it.
-    </p>
-  `,
-  showCancelButton: true,
-  confirmButtonText: "Yes, continue",
-  cancelButtonText: "Cancel",
-  confirmButtonColor: "#cd7913",
-  cancelButtonColor: "#6b7280",
-  reverseButtons: true,
-  customClass: SWAL_CLASSES,
-});
+      const confirmResult = await Swal.fire({
+        icon: "question",
+        title: "Create quote & proceed to payment?",
+        html: `
+          <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
+            We'll create your quotation, then open the secure
+            <strong>Razorpay</strong> payment window.
+          </p>
+          <p style="margin:0;font-size:0.8rem;color:#6b7280;line-height:1.5;">
+            Once payment is completed, you'll be taken to your quote
+            confirmation page where you can view and download it.
+          </p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: "Yes, continue",
+        cancelButtonText: "Cancel",
+        confirmButtonColor: "#cd7913",
+        cancelButtonColor: "#6b7280",
+        reverseButtons: true,
+        customClass: SWAL_CLASSES,
+      });
 
       if (!confirmResult.isConfirmed) return;
 
-      // ────────────────────────────────────────────────────────────
-      // STEP 0b: Loading SweetAlert while talking to Frappe
-      // ────────────────────────────────────────────────────────────
       Swal.fire({
         title: "Creating your quote…",
         html: `<p style="margin:0;color:#6b7280;font-size:0.85rem;line-height:1.5;">
@@ -797,7 +806,6 @@ const confirmResult = await Swal.fire({
           share_key: DEFAULT_SHARE_KEY,
         };
 
-        // ---------- STEP 1: create quotation ----------
         const res = await fetch(QUOTE_API, {
           method: "POST",
           headers: {
@@ -846,7 +854,6 @@ const confirmResult = await Swal.fire({
           shareKey: msg.share_key,
         };
 
-        // ---------- STEP 2: create sales order + payment ----------
         const soResult = await createSalesOrderFromQuotation(quotationId);
 
         if (!soResult.ok) {
@@ -878,7 +885,6 @@ const confirmResult = await Swal.fire({
           quoteInfo.paymentToken = soResult.paymentToken;
 
           if (soResult.paymentToken) {
-            // Close the loading alert before Razorpay opens
             Swal.close();
 
             const paymentResult = await openRazorpayCheckout({
@@ -891,24 +897,6 @@ const confirmResult = await Swal.fire({
               quoteInfo.razorpayPaymentId = paymentResult.razorpay_payment_id;
               quoteInfo.razorpayOrderId = paymentResult.razorpay_order_id;
               quoteInfo.razorpaySignature = paymentResult.razorpay_signature;
-
-              // ── Payment success SweetAlert ──
-              // await Swal.fire({
-              //   icon: "success",
-              //   title: "Payment successful!",
-              //   html: `
-              //     <p style="margin:0 0 0.5rem;color:#4b5563;line-height:1.5;">
-              //       Your quotation <strong>${quotationId}</strong> has been
-              //       created and payment received.
-              //     </p>
-              //     <p style="margin:0;color:#16794a;font-weight:700;font-size:0.85rem;">
-              //       ✅ All set — you're good to go!
-              //     </p>
-              //   `,
-              //   confirmButtonText: "View quote",
-              //   confirmButtonColor: "#cd7913",
-              //   customClass: SWAL_CLASSES,
-              // });
             } else {
               console.warn(
                 "[QuoteCartPage] Payment not completed:",
@@ -916,7 +904,6 @@ const confirmResult = await Swal.fire({
               );
               quoteInfo.paymentStatus = "Pending";
 
-              // ── Payment failed / cancelled SweetAlert ──
               await Swal.fire({
                 icon: "warning",
                 title: "Payment not completed",
@@ -960,7 +947,6 @@ const confirmResult = await Swal.fire({
           }
         }
 
-        // ---------- STEP 3: update UI ----------
         setCreatedQuote(quoteInfo);
 
         if (quoteItems === null) {
@@ -988,7 +974,6 @@ const confirmResult = await Swal.fire({
         });
       } finally {
         setSubmitting(false);
-        // Safety net: close any lingering loading alert
         if (Swal.isVisible() && Swal.getConfirmButton() === null) {
           Swal.close();
         }
@@ -1024,7 +1009,7 @@ const confirmResult = await Swal.fire({
   const filteredCatalog = useMemo(() => {
     const q = search.trim().toLowerCase();
     return catalog.filter((it) => {
-      // const typeKey = (it.amc_type_name || it.amc_type || "Other").trim();
+      const typeKey = (it.amc_type_name || it.amc_type || "Other").trim();
       if (activeTypes.length > 0 && !activeTypes.includes(typeKey))
         return false;
       if (!q) return true;
@@ -1050,6 +1035,11 @@ const confirmResult = await Swal.fire({
     [cart]
   );
 
+  // ────────────────────────────────────────────────────────────
+  // AUTH GATE — block render until auth check resolves
+  // ────────────────────────────────────────────────────────────
+  if (!authChecked) return null;
+  if (!authed) return null;
   if (!mounted) return null;
 
   const shippingLocked = form.sameAsSite;
@@ -1154,8 +1144,8 @@ const confirmResult = await Swal.fire({
                         setLineAddParent(parent);
                         setLineAddOpen(true);
                       }}
-                        onCertToggle={handleCertToggle}          // NEW
-  onSubCertToggle={handleSubCertToggle}    // NEW
+                      onCertToggle={handleCertToggle}
+                      onSubCertToggle={handleSubCertToggle}
                     />
                   ))}
                 </ul>
@@ -1237,8 +1227,6 @@ const confirmResult = await Swal.fire({
             onClose={() => !submitting && setQuoteOpen(false)}
           />
         )}
-
-        {toast && <div className={styles.cartToast}>{toast}</div>}
       </main>
     </>
   );
