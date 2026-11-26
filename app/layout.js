@@ -1,8 +1,10 @@
+// app/layout.jsx
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Footer from "@/components/Footer/Footer";
 import Navbar from "@/components/Navbar/Navbar";
 import FirstVisitEnquiryModal from "@/components/FirstVisitEnquiryModal.jsx";
+import { ToastProvider } from "@/components/providers/ToastProvider"; // ← ADD
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -27,10 +29,12 @@ export default function RootLayout({ children }) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Navbar />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <FirstVisitEnquiryModal />
+        <ToastProvider>
+          <Navbar />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <FirstVisitEnquiryModal />
+        </ToastProvider>
       </body>
     </html>
   );

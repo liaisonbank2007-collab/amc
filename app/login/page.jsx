@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import styles from './Login.module.scss';
+import AMCNavbar from '@/components/Navbar/Navbar';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -60,6 +61,7 @@ export default function Login() {
 
   return (
     <>
+    < AMCNavbar />
       <Head>
         <title>Sign In | Premium</title>
         <meta name="description" content="Premium login page" />

@@ -18,11 +18,9 @@ export default function AddItemsModal({
   cart,
   onClearAll,
   onClose,
-  // Sector filter props
   sectors,
   activeSector,
   setActiveSector,
-  // Full unfiltered list — feeds the type dropdown's counts
   allItems,
 }) {
   return (

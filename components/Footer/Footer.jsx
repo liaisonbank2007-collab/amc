@@ -46,7 +46,7 @@ export default function Footer() {
               </svg>
             </button>
             <Link
-              href="https://www.liaisonbank.com/contact-us-liaison-bank"
+              href="/contact"
               className="footer-cta-btn"
             >
               <span>Speak with our team</span>
@@ -97,7 +97,7 @@ export default function Footer() {
               <li><Link href="https://www.liaisonbank.com/our-services">Services</Link></li>
               <li><Link href="https://www.liaisonbank.com/projects">Projects</Link></li>
               <li><Link href="https://www.liaisonbank.com/client-liaison">Client Liaison</Link></li>
-              <li><Link href="https://www.liaisonbank.com/contact-us-liaison-bank">Contact</Link></li>
+              <li><Link href="/contact">Contact</Link></li>
             </ul>
           </div>
 
